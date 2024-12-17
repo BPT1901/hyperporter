@@ -1,31 +1,66 @@
-// FileList/index.js
 import { useState, useEffect } from 'react';
 import { Clock, HardDrive, Save, Folder } from 'lucide-react';
 
 const FileList = ({ ws, isConnected }) => {
   const [files, setFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [transferStatus, setTransferStatus] = useState('');
   const [destinationPath, setDestinationPath] = useState('');
   const [newFileName, setNewFileName] = useState('');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!ws || !isConnected) return;
-
-    console.log('Requesting file list');
-    ws.send(JSON.stringify({ type: 'GET_FILE_LIST' }));
+    if (!ws || !isConnected) {
+      console.log('WebSocket not ready or not connected');
+      return;
+    }
 
     const handleMessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log('FileList received:', data);
+      try {
+        const data = JSON.parse(event.data);
+        console.log('FileList received message:', data);
 
-      if (data.type === 'CLIP_LIST') {
-        setFiles(data.clips);
+        switch (data.type) {
+          case 'CLIP_LIST':
+            if (Array.isArray(data.clips)) {
+              console.log('Setting files:', data.clips);
+              setFiles(data.clips);
+              setError(null);
+            } else {
+              console.error('Clips data is not an array:', data.clips);
+            }
+            break;
+          case 'ERROR':
+            console.error('Received error:', data.message);
+            setError(data.message);
+            break;
+          case 'CONNECTED':
+            console.log('Connected to HyperDeck, requesting file list');
+            requestFileList();
+            break;
+          default:
+            console.log('Unhandled message type:', data.type);
+        }
+      } catch (error) {
+        console.error('Error processing message:', error);
+        setError('Error processing server message');
       }
     };
 
+    const requestFileList = () => {
+      console.log('Sending GET_FILE_LIST request');
+      ws.send(JSON.stringify({ type: 'GET_FILE_LIST' }));
+    };
+
+    // Add message listener
     ws.addEventListener('message', handleMessage);
-    return () => ws.removeEventListener('message', handleMessage);
+    
+    // Request initial file list
+    requestFileList();
+
+    // Cleanup
+    return () => {
+      ws.removeEventListener('message', handleMessage);
+    };
   }, [ws, isConnected]);
 
   const handleBrowse = async () => {
@@ -40,20 +75,22 @@ const FileList = ({ ws, isConnected }) => {
       window.selectedDirectory = directoryHandle;
     } catch (error) {
       console.error('Error selecting folder:', error);
+      setError('Error selecting folder');
     }
   };
 
   const handleFileNameChange = (e) => {
     let fileName = e.target.value;
-    // Remove any existing .mp4 extension before adding it back
     fileName = fileName.replace(/\.mp4$/, '');
     setNewFileName(fileName);
   };
 
   const handleSave = () => {
-    if (!destinationPath || !newFileName) return;
+    if (!destinationPath || !newFileName || !selectedFile) {
+      setError('Please select a file and enter a file name');
+      return;
+    }
     
-    // Ensure .mp4 extension
     const fullFileName = newFileName.endsWith('.mp4') ? newFileName : `${newFileName}.mp4`;
     
     ws.send(JSON.stringify({
@@ -62,9 +99,10 @@ const FileList = ({ ws, isConnected }) => {
       destinationPath,
       newFileName: fullFileName
     }));
-    // Clear the file name input after saving
-  setNewFileName('');
+    setNewFileName('');
   };
+
+  console.log('Current files state:', files); // Debug log
 
   return (
     <>
@@ -72,11 +110,13 @@ const FileList = ({ ws, isConnected }) => {
         Available Recordings
       </h2>
       <div className="recordings-list" style={{ width: '493.03px', height: '300px', overflowY: 'auto' }}>
-        {files.length === 0 ? (
+        {error ? (
+          <p className="text-red-500">{error}</p>
+        ) : files.length === 0 ? (
           <p className="text-gray-500">No recordings found</p>
         ) : (
           files.map((file, index) => (
-            <div key={index} className="recording-item">
+            <div key={index} className="recording-item p-2 mb-2 border rounded">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <input
@@ -135,7 +175,7 @@ const FileList = ({ ws, isConnected }) => {
           <button
             className="btn"
             onClick={handleSave}
-            disabled={!destinationPath || !newFileName}
+            disabled={!destinationPath || !newFileName || !selectedFile}
           >
             <Save size={18} />
           </button>

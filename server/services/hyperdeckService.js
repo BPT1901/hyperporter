@@ -71,36 +71,43 @@ class HyperdeckService extends EventEmitter {
   processClipResponse(line) {
     console.log('Processing clip response:', line);
   
-    // Handle clip entries in the format:
-    // "1: MAC BANK SUPER 5TH DEC_0001.mp4 00:00:00:00 00:00:01:08"
-    const clipMatch = line.match(/^(\d+): (.+\.mp4) (\d{2}:\d{2}:\d{2}:\d{2}) (\d{2}:\d{2}:\d{2}:\d{2})/);
-    
     if (line.startsWith('205 clips info:')) {
       console.log('Starting new clip list');
-      this.clipList = []; // Clear any existing clips
-    }
-    else if (clipMatch) {
-      const clip = {
-        id: clipMatch[1],
-        name: clipMatch[2],
-        startTime: clipMatch[3],
-        duration: clipMatch[4]
-      };
-      console.log('Adding clip:', clip);
-      this.clipList.push(clip);
-      
-      // If this is the last clip based on the clip count
-      if (this.clipCount && this.clipList.length === this.clipCount) {
-        console.log('Reached last clip, emitting list');
-        this.emit('clipList', [...this.clipList]);
-        this.clipList = [];
-        this.clipCount = null;
-        this.currentCommand = null;
-      }
+      this.clipList = [];
     }
     else if (line.startsWith('clip count:')) {
       this.clipCount = parseInt(line.split(': ')[1], 10);
       console.log('Got clip count:', this.clipCount);
+      if (this.clipCount === 0) {
+        // If no clips, emit empty list immediately
+        console.log('No clips found, emitting empty list');
+        this.emit('clipList', []);
+        this.currentCommand = null;
+      }
+    }
+    else {
+      const clipMatch = line.match(/^(\d+): (.+\.mp4) (\d{2}:\d{2}:\d{2}:\d{2}) (\d{2}:\d{2}:\d{2}:\d{2})/);
+      if (clipMatch) {
+        const clip = {
+          id: clipMatch[1],
+          name: clipMatch[2],
+          startTime: clipMatch[3],
+          duration: clipMatch[4]
+        };
+        console.log('Adding clip:', clip);
+        this.clipList.push(clip);
+        
+        if (this.clipCount && this.clipList.length === this.clipCount) {
+          console.log('Reached last clip, emitting list of', this.clipList.length, 'clips');
+          this.emit('clipList', [...this.clipList]);
+          this.clipList = [];
+          this.clipCount = null;
+          this.currentCommand = null;
+        }
+      } else if (line.match(/^[0-9]{3}/)) {
+        // This is a response code line
+        console.log('Response code line:', line);
+      }
     }
   }
 

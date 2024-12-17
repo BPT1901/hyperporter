@@ -1,5 +1,4 @@
-// src/components/Dashboard/index.js
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import FileList from '../FileList';
 import { AlertCircle, Check, HardDrive, Folder, Save } from 'lucide-react';
 
@@ -13,276 +12,244 @@ const Notification = ({ message, type }) => (
 );
 
 const Dashboard = ({ onConnect }) => {
-  const [settings, setSettings] = useState({
-    destinationPath: ''
-  });
+  // State declarations
+  const [settings, setSettings] = useState({ destinationPath: '' });
   const [ipAddress, setIpAddress] = useState('');
   const [isConnected, setIsConnected] = useState(false);
-  const [selectedDrives, setSelectedDrives] = useState({
-    ssd1: false,
-    ssd2: false
-  });
+  const [selectedDrives, setSelectedDrives] = useState({ ssd1: false, ssd2: false });
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [transferStatus, setTransferStatus] = useState(null);
   const [ws, setWs] = useState(null);
   const [notification, setNotification] = useState(null);
   const [newFileName, setNewFileName] = useState('');
   const [lastTransferredFile, setLastTransferredFile] = useState(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
 
-  const showNotification = (message, type) => {
+  // Notification helper
+  const showNotification = useCallback((message, type) => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  useEffect(() => {
-    if (transferStatus?.type === 'success') {
-      showNotification(transferStatus.message, 'success');
-    } else if (transferStatus?.type === 'error') {
-      showNotification(transferStatus.message, 'error');
-    }
-  }, [transferStatus]);
-
-  const sanitizePath = (path) => {
-    return path.replace(/\/+/g, '/');
-  };
-
-  const connectWebSocket = useCallback(() => {
-    const socket = new WebSocket('ws://localhost:3001/ws');
-
-    socket.onopen = () => {
-      console.log('WebSocket connected successfully');
-      setTransferStatus('Connected to server');
-    };
-
-    socket.onerror = (error) => {
-      console.error('WebSocket Error:', error);
-      setTransferStatus('Connection error - retrying...');
-      setTimeout(() => connectWebSocket(), 5000);
-    };
-
-    socket.onclose = () => {
-      console.log('WebSocket Disconnected');
-      setTransferStatus('Disconnected - retrying...');
-      setIsConnected(false);
-      setIsMonitoring(false);
-      setTimeout(() => connectWebSocket(), 5000);
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('Received message:', data);
-        console.log('Full message data:', data);
-        
-        switch (data.type) {
-          case 'CONNECTED':
-            setIsConnected(true);
-            setTransferStatus({
-              message: 'Connected to HyperDeck',
-              type: 'success'
-            });
-            break;
-            case 'MONITORING_STARTED':
-              setIsMonitoring(true);
-              setTransferStatus({
-                message: 'Monitoring started',
-                type: 'success'
-              });
-              break;  
-          case 'CLIP_LIST':
-            console.log('Received clip list:', data.clips);
-            // FileList component will handle this
-            break;
-          case 'FILE_TRANSFER':
-            setTransferStatus({
-              message: `Transferring: ${data.filename}`,
-              type: 'info'
-            });
-            break;
-            case 'TRANSFER_COMPLETE':
-              console.log('Transfer complete data:', data);  
-              setLastTransferredFile(data.filePath);  // This is crucial
-              setTransferStatus({
-                message: `Success! File ${data.filename} has been transferred`,
-                type: 'success'
-            });
-            break;
-            case 'MONITORING_STOPPED':
-              setIsMonitoring(false);
-              if (data.lastTransferredFile) {
-                setLastTransferredFile(data.lastTransferredFile);
-                setTransferStatus({
-                  message: `File transferred: ${data.fileName}`,
-                  type: 'success'
-                });
-              } else {
-                setTransferStatus({
-                  message: 'Monitoring stopped',
-                  type: 'success'
-                });
-              }
-              break;
-              case 'TRANSFER_STATUS':
-                if (data.message.includes('final transfer check')) {
-                  // A file has been transferred
-                  const filePath = data.destinationPath; // This will be undefined until we update the server
-                  setLastTransferredFile(filePath);
-                  setTransferStatus({
-                    message: 'File transfer complete',
-                    type: 'success'
-                  });
-                }
-                break;
-
-                case 'FILE_RENAMED':
-                  setTransferStatus({
-                    message: 'File has been saved to your destination',
-                    type: 'success'
-                  });
-                  setTimeout(() => setTransferStatus(null), 3000);
-                  break;
-
-          case 'ERROR':
-            setTransferStatus({
-              message: `Error: ${data.message}`,
-              type: 'error'
-            });
-            break;
-          default:
-            console.log('Received message type:', data.type);
-        }
-      } catch (error) {
-        console.error('Error processing message:', error);
-      }
-    };
-
-    setWs(socket);
-    return socket;
+    setTimeout(() => setNotification(null), 5000);
   }, []);
 
+  // WebSocket connection handler
+  const connectWebSocket = useCallback(() => {
+    let socket = null;
+    
+    try {
+      socket = new WebSocket('ws://localhost:3001/ws');
+      setWs(socket);
+
+      socket.onopen = () => {
+        console.log('WebSocket connected successfully');
+        setWsConnected(true);
+        showNotification('Connected to application server', 'success');
+      };
+
+      socket.onclose = () => {
+        console.log('WebSocket disconnected');
+        setWsConnected(false);
+        setIsConnected(false);
+        setIsMonitoring(false);
+        showNotification('Connection lost - retrying...', 'error');
+        
+        // Retry connection after delay
+        setTimeout(() => {
+          if (!wsConnected) {
+            connectWebSocket();
+          }
+        }, 5000);
+      };
+
+      socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setWsConnected(false);
+        showNotification('Connection error occurred', 'error');
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('Received message:', data);
+
+          switch (data.type) {
+            case 'CONNECTED':
+              setIsConnected(true);
+              setTransferStatus({ message: 'Connected to HyperDeck', type: 'success' });
+              break;
+
+            case 'MONITORING_STARTED':
+              setIsMonitoring(true);
+              setTransferStatus({ message: 'Monitoring started', type: 'success' });
+              break;
+
+            case 'MONITORING_STOPPED':
+              setIsMonitoring(false);
+              setTransferStatus({ message: 'Monitoring stopped', type: 'info' });
+              break;
+
+            case 'TRANSFER_COMPLETED':
+              setLastTransferredFile(data.file);
+              setTransferStatus({ message: `Transfer completed: ${data.file}`, type: 'success' });
+              break;
+
+            case 'TRANSFER_FAILED':
+              setTransferStatus({ message: `Transfer failed: ${data.error}`, type: 'error' });
+              break;
+
+            default:
+              console.warn('Unhandled message type:', data.type);
+          }
+        } catch (error) {
+          console.error('Error processing message:', error);
+          showNotification('Error processing server message', 'error');
+        }
+          };
+        } catch (error) {
+          console.error('Error processing message:', error);
+          showNotification('Error processing server message', 'error');
+        }
+      }, [showNotification]);
+
+
+  // Initialize WebSocket connection
   useEffect(() => {
-    const socket = connectWebSocket();
+    connectWebSocket();
+    
+    // Cleanup function
     return () => {
-      if (socket) {
-        socket.close();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+        setWs(null);
+        setWsConnected(false);
       }
     };
   }, [connectWebSocket]);
 
-  const connectToHyperdeck = async () => {
-    try {
-      if (!ws) throw new Error('WebSocket not connected');
-      ws.send(JSON.stringify({
-        type: 'CONNECT_HYPERDECK',
-        ipAddress
-      }));
-      onConnect(ipAddress); // Update the tab name on successful connection
-    } catch (error) {
-      console.error('Error connecting to HyperDeck:', error);
-      setTransferStatus('Failed to connect to HyperDeck');
+  // Send message helper with connection check
+  const sendMessage = useCallback((message) => {
+    if (!ws || !wsConnected) {
+      console.log('WebSocket not ready, message not sent:', message);
+      // Optionally queue the message to send when connected
+      return;
     }
-  };
 
-  const startWatching = async () => {
     try {
-      if (!ws) throw new Error('WebSocket not connected');
-      if (!settings.destinationPath) throw new Error('Destination path not set');
-      if (!selectedDrives.ssd1 && !selectedDrives.ssd2) {
-        throw new Error('Please select at least one drive to monitor');
+      ws.send(JSON.stringify(message));
+    } catch (error) {
+      console.error('Error sending message:', error);
+      showNotification('Failed to send message', 'error');
+    }
+  }, [ws, wsConnected, showNotification]);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    const cleanup = connectWebSocket();
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, [connectWebSocket]);
+
+    // HyperDeck connection handler
+    const connectToHyperdeck = useCallback(async () => {
+      if (!ipAddress) {
+        showNotification('Please enter an IP address', 'error');
+        return;
       }
-  
-      setIsMonitoring(true);
-      setTransferStatus({
-        message: 'Monitoring started',
-        type: 'success'
-      });
-  
-      const sanitizedPath = sanitizePath(settings.destinationPath);
-  
-      ws.send(JSON.stringify({
-        type: 'START_MONITORING',
-        drives: selectedDrives,
-        destinationPath: sanitizedPath
-      }));
-    } catch (error) {
-      console.error('Error starting monitoring:', error);
-      setTransferStatus({
-        message: error.message,
-        type: 'error'
-      });
-      setIsMonitoring(false);
-    }
-  };
-
-  const stopWatching = async () => {
-    try {
-      if (ws) {
-        const sanitizedPath = sanitizePath(settings.destinationPath);
-        
+    
+      console.log('Attempting to connect to HyperDeck at:', ipAddress);
+      
+      try {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          showNotification('WebSocket not connected', 'error');
+          return;
+        }
+    
+        // Send connection request through WebSocket
         ws.send(JSON.stringify({
-          type: 'STOP_MONITORING',
-          drives: selectedDrives,
-          destinationPath: sanitizedPath
+          type: 'CONNECT_HYPERDECK',
+          ipAddress: ipAddress
         }));
+    
+      } catch (error) {
+        console.error('Error connecting to HyperDeck:', error);
+        showNotification('Failed to connect to HyperDeck', 'error');
       }
-      setIsMonitoring(false);
-      setTransferStatus({
-        message: 'Monitoring stopped',
-        type: 'success'
-      });
-    } catch (error) {
-      console.error('Error stopping monitoring:', error);
-      setTransferStatus({
-        message: 'Failed to stop monitoring',
-        type: 'error'
-      });
-    }
-  };
+    }, [ipAddress, ws, showNotification]);
 
-  const handleFolderSelect = async () => {
+  // File system handlers
+  const sanitizePath = useCallback((path) => {
     try {
-      const directoryHandle = await window.showDirectoryPicker({
-        mode: 'readwrite'
-      });
-      
-      const fullPath = `/Users/benturner/Desktop/${directoryHandle.name}`;
-      
-      setSettings(prev => ({
-        ...prev,
-        destinationPath: fullPath
-      }));
-      setTransferStatus(`Selected destination folder: ${fullPath}`);
-      
-      window.selectedDirectory = directoryHandle;
+      return window.electron.path.join(path);
+    } catch (error) {
+      console.error('Error sanitizing path:', error);
+      return path;
+    }
+  }, []);
+
+  const handleFolderSelect = useCallback(async () => {
+    try {
+      const selectedPath = await window.electron.dialog.selectDirectory();
+      if (selectedPath) {
+        setSettings(prev => ({ ...prev, destinationPath: selectedPath }));
+        setTransferStatus({ message: `Folder selected: ${selectedPath}`, type: 'success' });
+      }
     } catch (error) {
       console.error('Error selecting folder:', error);
-      if (error.name === 'SecurityError') {
-        setTransferStatus('Please grant permission to access folders');
-      } else {
-        setTransferStatus('Error selecting destination folder');
-      }
+      showNotification('Failed to select folder', 'error');
     }
-  };
+  }, [showNotification]);
 
-  const handleRenameFile = async () => {
-    if (!lastTransferredFile || !newFileName) return;
-    
+  const startWatching = useCallback(async () => {
+    if (!settings.destinationPath) {
+      showNotification('Please select a destination folder first', 'error');
+      return;
+    }
+
     try {
-      ws.send(JSON.stringify({
-        type: 'RENAME_FILE',
-        oldPath: lastTransferredFile,
-        newName: newFileName
-      }));
+      sendMessage({ type: 'START_MONITORING', path: settings.destinationPath });
+      setIsMonitoring(true);
+    } catch (error) {
+      console.error('Error starting monitoring:', error);
+      showNotification('Failed to start monitoring', 'error');
+    }
+  }, [settings.destinationPath, sendMessage, showNotification]);
+
+  const stopWatching = useCallback(() => {
+    try {
+      sendMessage({ type: 'STOP_MONITORING' });
+      setIsMonitoring(false);
+      setTransferStatus({ message: 'Monitoring stopped', type: 'info' });
+    } catch (error) {
+      console.error('Error stopping monitoring:', error);
+      showNotification('Failed to stop monitoring', 'error');
+    }
+  }, [sendMessage, showNotification]);
+
+  const handleRenameFile = useCallback(async () => {
+    if (!lastTransferredFile || !newFileName) {
+      showNotification('Please enter a new file name', 'error');
+      return;
+    }
+
+    try {
+      const oldPath = sanitizePath(lastTransferredFile);
+      const newPath = sanitizePath(newFileName);
+      await window.electron.fs.rename(oldPath, newPath);
+      setTransferStatus({ message: 'File renamed successfully', type: 'success' });
+      setNewFileName('');
     } catch (error) {
       console.error('Error renaming file:', error);
-      setTransferStatus({
-        message: 'Failed to rename file',
-        type: 'error'
-      });
+      showNotification('Failed to rename file', 'error');
     }
-  };
+  }, [lastTransferredFile, newFileName, sanitizePath, showNotification]);
 
-  console.log('lastTransferredFile:', lastTransferredFile);
+  // Update transfer status notification
+  useEffect(() => {
+    if (transferStatus) {
+      showNotification(transferStatus.message, transferStatus.type);
+    }
+  }, [transferStatus, showNotification]);
 
   return (
     <div className="app-container">
@@ -299,17 +266,15 @@ const Dashboard = ({ onConnect }) => {
       <main className="main-content">
         {/* Left Panel - Controls */}
         <div className="panel">
-          {/* Panel Title */}
-            <h2 className="text-xl font-semibold mb-4">Live Transfer</h2>
-          {/* Connection Status */}
+          <h2 className="text-xl font-semibold mb-4">Live Transfer</h2>
+          
           <div className="mb-6">
-          <h2 className="text-lg mb-2">Connection Status</h2>
-            <p className={`status-text ${isConnected ? 'text-success' : 'text-error'}`}>
-              {isConnected ? 'Connected' : 'Disconnected'}
+            <h2 className="text-lg mb-2">Connection Status</h2>
+            <p className={`status-text ${wsConnected ? 'text-success' : 'text-error'}`}>
+              {wsConnected ? 'Connected' : 'Disconnected'}
             </p>
           </div>
 
-          {/* IP Input with inline button */}
           <div className="input-group">
             <input
               type="text"
@@ -328,7 +293,6 @@ const Dashboard = ({ onConnect }) => {
             </button>
           </div>
 
-          {/* Drive Selection */}
           <div className="mb-6">
             <h2>Drive Selection</h2>
             <div className="drive-options">
@@ -350,7 +314,6 @@ const Dashboard = ({ onConnect }) => {
             </div>
           </div>
 
-          {/* Destination Folder with inline button */}
           <div className="input-group">
             <input
               type="text"
@@ -368,7 +331,6 @@ const Dashboard = ({ onConnect }) => {
             </button>
           </div>
 
-          {/* Start/Stop Button */}
           <button
             className={`btn full-width ${isMonitoring ? 'monitoring' : ''}`}
             onClick={isMonitoring ? stopWatching : startWatching}
@@ -376,31 +338,32 @@ const Dashboard = ({ onConnect }) => {
           >
             {isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'}
           </button>
-          {/* File Renaming Section */}
+
           {lastTransferredFile && (
-          <div className="mt-6 border-t pt-6">
-            <h2 className="text-lg font-semibold mb-2">Name Your File</h2>
-            <div className="input-group">
-              <input
-                type="text"
-                className="input-field"
-                value={newFileName}
-                onChange={(e) => setNewFileName(e.target.value)}
-                placeholder="Enter new file name"
-              />
-              <button
-                className="btn"
-                onClick={handleRenameFile}
-                disabled={!newFileName}
-              >
-                <span className="flex items-center justify-center">
-                  <Save size={18} /> {/* Using Lucide Save icon */}
+            <div className="mt-6 border-t pt-6">
+              <h2 className="text-lg font-semibold mb-2">Name Your File</h2>
+              <div className="input-group">
+                <input
+                  type="text"
+                  className="input-field"
+                  value={newFileName}
+                  onChange={(e) => setNewFileName(e.target.value)}
+                  placeholder="Enter new file name"
+                />
+                <button
+                  className="btn"
+                  onClick={handleRenameFile}
+                  disabled={!newFileName}
+                >
+                  <span className="flex items-center justify-center">
+                    <Save size={18} />
                   </span>
                 </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
         </div>
+
         {/* Right Panel - FileList */}
         <div className="panel recordings-panel">
           <FileList ws={ws} isConnected={isConnected} />
