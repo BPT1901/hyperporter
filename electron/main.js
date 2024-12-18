@@ -27,6 +27,10 @@ function testHyperdeckConnection(ip) {
   });
 }
 
+if (process.platform === 'darwin') {
+  app.dock.setIcon(path.join(__dirname, '..', 'assets', 'icon.png'));
+}
+
 function createWindow() {
   console.log('Creating window...');
   console.log('Development mode:', isDev);
@@ -41,8 +45,9 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
-      preload: preloadPath
+      preload: path.join(__dirname, 'preload.js')
     },
+    icon: path.join(__dirname, '..', 'assets', 'icon.png')  // Note the '..' to go up one directory
   });
   
   ipcMain.handle('select-directory', async () => {
