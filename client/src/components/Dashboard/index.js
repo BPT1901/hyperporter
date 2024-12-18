@@ -33,83 +33,104 @@ const Dashboard = ({ onConnect }) => {
   }, []);
 
   // WebSocket connection handler
-  const connectWebSocket = useCallback(() => {
-    let socket = null;
+const connectWebSocket = useCallback(() => {
+  let socket = null;
     
-    try {
-      socket = new WebSocket('ws://localhost:3001/ws');
-      setWs(socket);
+  try {
+    socket = new WebSocket('ws://localhost:3001/ws');
+    setWs(socket);
 
-      socket.onopen = () => {
-        console.log('WebSocket connected successfully');
-        setWsConnected(true);
-        showNotification('Connected to application server', 'success');
-      };
+    socket.onopen = () => {
+      console.log('WebSocket connected successfully');
+      setWsConnected(true);
+      showNotification('Connected to application server', 'success');
+    };
 
-      socket.onclose = () => {
-        console.log('WebSocket disconnected');
-        setWsConnected(false);
-        setIsConnected(false);
-        setIsMonitoring(false);
-        showNotification('Connection lost - retrying...', 'error');
+    socket.onclose = () => {
+      console.log('WebSocket disconnected');
+      setWsConnected(false);
+      setIsConnected(false);
+      setIsMonitoring(false);
+      showNotification('Connection lost - retrying...', 'error');
+      
+      // Retry connection after delay
+      setTimeout(() => {
+        if (!wsConnected) {
+          connectWebSocket();
+        }
+      }, 5000);
+    };
+
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setWsConnected(false);
+      showNotification('Connection error occurred', 'error');
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Received message:', data);
         
-        // Retry connection after delay
-        setTimeout(() => {
-          if (!wsConnected) {
-            connectWebSocket();
-          }
-        }, 5000);
-      };
-
-      socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setWsConnected(false);
-        showNotification('Connection error occurred', 'error');
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('Received message:', data);
-
-          switch (data.type) {
-            case 'CONNECTED':
-              setIsConnected(true);
-              setTransferStatus({ message: 'Connected to HyperDeck', type: 'success' });
-              break;
-
-            case 'MONITORING_STARTED':
-              setIsMonitoring(true);
-              setTransferStatus({ message: 'Monitoring started', type: 'success' });
-              break;
-
+        switch (data.type) {
+          case 'CONNECTED':
+            setIsConnected(true);
+            setTransferStatus({ message: 'Connected to HyperDeck', type: 'success' });
+            break;
+    
+          case 'MONITORING_STARTED':
+            setIsMonitoring(true);
+            setTransferStatus({ message: 'Monitoring started', type: 'success' });
+            break;
+    
             case 'MONITORING_STOPPED':
-              setIsMonitoring(false);
-              setTransferStatus({ message: 'Monitoring stopped', type: 'info' });
-              break;
+            setIsMonitoring(false);
+            if (data.lastTransferredFile) {
+              setLastTransferredFile(data.lastTransferredFile);
+              // Get just the filename from the full path
+              const fileName = data.fileName ? data.fileName : data.lastTransferredFile.split('/').pop();
+              setNewFileName(fileName.replace('.mp4', ''));
+              showNotification('Monitoring stopped - You can now rename the last transferred file', 'info');
+            } else {
+              showNotification('Monitoring stopped', 'info');
+            }
+            break;
+    
+          case 'FILE_RENAMED':
+            showNotification('File renamed successfully', 'success');
+            setNewFileName('');
+            setLastTransferredFile(null);
+            break;
+    
+          case 'TRANSFER_COMPLETED':
+            setLastTransferredFile(data.file);
+            setTransferStatus({ message: `Transfer completed: ${data.file}`, type: 'success' });
+            break;
 
-            case 'TRANSFER_COMPLETED':
-              setLastTransferredFile(data.file);
-              setTransferStatus({ message: `Transfer completed: ${data.file}`, type: 'success' });
-              break;
-
-            case 'TRANSFER_FAILED':
-              setTransferStatus({ message: `Transfer failed: ${data.error}`, type: 'error' });
-              break;
-
-            default:
-              console.warn('Unhandled message type:', data.type);
-          }
-        } catch (error) {
-          console.error('Error processing message:', error);
-          showNotification('Error processing server message', 'error');
+          case 'RECORDING_SAVED':
+            showNotification('File saved successfully', 'success');
+            setNewFileName('');
+            setLastTransferredFile(null);
+            break;
+    
+          case 'TRANSFER_FAILED':
+            setTransferStatus({ message: `Transfer failed: ${data.error}`, type: 'error' });
+            break;
+    
+          default:
+            console.warn('Unhandled message type:', data.type);
         }
-          };
-        } catch (error) {
-          console.error('Error processing message:', error);
-          showNotification('Error processing server message', 'error');
-        }
-      }, [showNotification]);
+      } catch (error) {
+        console.error('Error processing message:', error);
+        showNotification('Error processing server message', 'error');
+      }
+    };
+
+  } catch (error) {
+    console.error('WebSocket connection error:', error);
+    showNotification('Failed to connect to WebSocket', 'error');
+  }
+}, [showNotification, wsConnected]);
 
 
   // Initialize WebSocket connection
@@ -201,19 +222,32 @@ const Dashboard = ({ onConnect }) => {
   }, [showNotification]);
 
   const startWatching = useCallback(async () => {
-    if (!settings.destinationPath) {
-      showNotification('Please select a destination folder first', 'error');
-      return;
-    }
+  if (!settings.destinationPath) {
+    showNotification('Please select a destination folder first', 'error');
+    return;
+  }
 
-    try {
-      sendMessage({ type: 'START_MONITORING', path: settings.destinationPath });
-      setIsMonitoring(true);
-    } catch (error) {
-      console.error('Error starting monitoring:', error);
-      showNotification('Failed to start monitoring', 'error');
-    }
-  }, [settings.destinationPath, sendMessage, showNotification]);
+  if (!ws || !wsConnected) {
+    showNotification('Not connected to server', 'error');
+    return;
+  }
+
+  try {
+    console.log('Starting monitoring with settings:', {
+      drives: selectedDrives,
+      destinationPath: settings.destinationPath
+    });
+
+    ws.send(JSON.stringify({
+      type: 'START_MONITORING',
+      drives: selectedDrives,
+      destinationPath: settings.destinationPath
+    }));
+  } catch (error) {
+    console.error('Error starting monitoring:', error);
+    showNotification('Failed to start monitoring: ' + error.message, 'error');
+  }
+}, [settings.destinationPath, selectedDrives, ws, wsConnected, showNotification]);
 
   const stopWatching = useCallback(() => {
     try {
@@ -231,25 +265,26 @@ const Dashboard = ({ onConnect }) => {
       showNotification('Please enter a new file name', 'error');
       return;
     }
-
+  
     try {
-      const oldPath = sanitizePath(lastTransferredFile);
-      const newPath = sanitizePath(newFileName);
-      await window.electron.fs.rename(oldPath, newPath);
-      setTransferStatus({ message: 'File renamed successfully', type: 'success' });
-      setNewFileName('');
+      const fullFileName = newFileName.endsWith('.mp4') ? newFileName : `${newFileName}.mp4`;
+      
+      // Use exact same structure as FileList component
+      ws.send(JSON.stringify({
+        type: 'SAVE_RECORDING',
+        file: {
+          name: lastTransferredFile.split('/').pop(),
+          slot: selectedDrives.ssd1 ? 1 : 2,  // Determine which slot was being monitored
+          path: lastTransferredFile
+        },
+        destinationPath: settings.destinationPath,
+        newFileName: fullFileName
+      }));
     } catch (error) {
-      console.error('Error renaming file:', error);
-      showNotification('Failed to rename file', 'error');
+      console.error('Error saving file:', error);
+      showNotification('Failed to save file', 'error');
     }
-  }, [lastTransferredFile, newFileName, sanitizePath, showNotification]);
-
-  // Update transfer status notification
-  useEffect(() => {
-    if (transferStatus) {
-      showNotification(transferStatus.message, transferStatus.type);
-    }
-  }, [transferStatus, showNotification]);
+  }, [lastTransferredFile, newFileName, ws, settings.destinationPath, selectedDrives, showNotification]);
 
   return (
     <div className="app-container">

@@ -121,165 +121,183 @@ wss.on('connection', (ws, req) => {
         break;
 
         case 'START_MONITORING':
-          try {
-            const hyperdeckIp = connectedDevices.get(ws);
-            const fileWatcher = new FileWatcher({
-              drives: data.drives,
-              destinationPath: data.destinationPath,
-              hyperdeckIp: hyperdeckIp
-            });
+        try {
+          console.log('Starting monitoring with config:', {
+            drives: data.drives,
+            destinationPath: data.destinationPath
+          });
 
-            fileWatcher.on('newFile', async (filePath) => {
-              try {
-                console.log(`New file detected: ${filePath}`);
-                ws.send(JSON.stringify({
-                  type: 'FILE_DETECTED',
-                  filePath
-                }));
+          const hyperdeckIp = connectedDevices.get(ws);
+          if (!hyperdeckIp) {
+            throw new Error('No HyperDeck connection found');
+          }
 
-                await fileWatcher.transferFile(filePath);
-                
-                ws.send(JSON.stringify({
-                  type: 'TRANSFER_COMPLETE',
-                  filePath,
-                  destinationPath: data.destinationPath
-                }));
-              } catch (error) {
-                ws.send(JSON.stringify({
-                  type: 'ERROR',
-                  message: `Transfer failed: ${error.message}`
-                }));
-              }
-            });
+          const fileWatcher = new FileWatcher({
+            drives: data.drives,
+            destinationPath: data.destinationPath,
+            hyperdeckIp: hyperdeckIp
+          });
 
-            activeWatchers.set(ws, fileWatcher);
-            fileWatcher.startMonitoring();
-            
-            // Send correct monitoring started message
-            ws.send(JSON.stringify({
-              type: 'MONITORING_STARTED',
-              message: 'Monitoring has begun'
-            }));
-          } catch (error) {
-            console.error('Error starting monitoring:', error);
+          fileWatcher.on('error', (error) => {
+            console.error('FileWatcher error:', error);
             ws.send(JSON.stringify({
               type: 'ERROR',
               message: error.message
             }));
+          });
+
+          await fileWatcher.startMonitoring();
+          
+          activeWatchers.set(ws, fileWatcher);
+          
+          ws.send(JSON.stringify({
+            type: 'MONITORING_STARTED',
+            message: 'Monitoring has begun'
+          }));
+        } catch (error) {
+          console.error('Error starting monitoring:', error);
+          ws.send(JSON.stringify({
+            type: 'ERROR',
+            message: `Failed to start monitoring: ${error.message}`
+          }));
+        }
+        break;
+
+        case 'STOP_MONITORING':
+          try {
+            const fileWatcher = activeWatchers.get(ws);
+            if (fileWatcher) {
+              // First message about initiating transfer
+              ws.send(JSON.stringify({
+                type: 'TRANSFER_STATUS',
+                message: 'Initiating final transfer check...'
+              }));
+              
+              try {
+                // Get the last transferred file information before stopping
+                const lastFile = await fileWatcher.getLastTransferredFile();
+                
+                await fileWatcher.stop();
+                
+                // Send the monitoring stopped message with the file information
+                ws.send(JSON.stringify({
+                  type: 'MONITORING_STOPPED',
+                  message: 'Monitoring stopped and final files transferred',
+                  lastTransferredFile: lastFile ? lastFile.path : null,
+                  fileName: lastFile ? lastFile.name : null
+                }));
+              } catch (error) {
+                ws.send(JSON.stringify({
+                  type: 'ERROR',
+                  message: `Final transfer failed: ${error.message}`
+                }));
+              }
+              
+              activeWatchers.delete(ws);
+            }
+          } catch (error) {
+            console.error('Error stopping monitoring:', error);
+            ws.send(JSON.stringify({
+              type: 'ERROR',
+              message: `Failed to stop monitoring: ${error.message}`
+            }));
           }
           break;
 
-          case 'STOP_MONITORING':
+          case 'SAVE_RECORDING':
             try {
-              const fileWatcher = activeWatchers.get(ws);
-              if (fileWatcher) {
-                // First message about initiating transfer
-                ws.send(JSON.stringify({
-                  type: 'TRANSFER_STATUS',
-                  message: 'Initiating final transfer check...'
-                }));
-                
-                try {
-                  // Get the last transferred file information before stopping
-                  const lastFile = await fileWatcher.getNewFiles();
-                  const lastFilePath = lastFile && lastFile.length > 0 
-                    ? `${fileWatcher.destinationPath}/${lastFile[0].name}`
-                    : null;
-
-                  await fileWatcher.stop();
-                  
-                  // Send the monitoring stopped message with the file information
-                  ws.send(JSON.stringify({
-                    type: 'MONITORING_STOPPED',
-                    message: 'Monitoring stopped and final files transferred',
-                    lastTransferredFile: lastFilePath,
-                    fileName: lastFile && lastFile.length > 0 ? lastFile[0].name : null
-                  }));
-                } catch (error) {
-                  ws.send(JSON.stringify({
-                    type: 'ERROR',
-                    message: `Final transfer failed: ${error.message}`
-                  }));
-                }
-                
-                activeWatchers.delete(ws);
+              const fileWatcher = new FileWatcher({
+                drives: { [data.file.slot === 1 ? 'ssd1' : 'ssd2']: true },
+                destinationPath: data.destinationPath,
+                hyperdeckIp: connectedDevices.get(ws)
+              });
+          
+              // Ensure directory exists
+              await fs.ensureDir(data.destinationPath);
+          
+              // Copy the file
+              await fileWatcher.transferViaFTP({
+                name: data.file.name,
+                path: `ssd${data.file.slot}/${data.file.name}`,
+                drive: `ssd${data.file.slot}`
+              });
+          
+              // If a new filename was provided, rename the file
+              if (data.newFileName && data.newFileName !== data.file.name) {
+                const oldPath = path.join(data.destinationPath, data.file.name);
+                const newPath = path.join(data.destinationPath, data.newFileName);
+                await fs.rename(oldPath, newPath);
               }
+          
+              ws.send(JSON.stringify({
+                type: 'RECORDING_SAVED',
+                message: 'Recording saved successfully'
+              }));
             } catch (error) {
-              console.error('Error stopping monitoring:', error);
+              console.error('Error saving recording:', error);
               ws.send(JSON.stringify({
                 type: 'ERROR',
-                message: `Failed to stop monitoring: ${error.message}`
+                message: `Failed to save recording: ${error.message}`
               }));
             }
             break;
 
-            case 'SAVE_RECORDING':
-              try {
-                const fileWatcher = new FileWatcher({
-                  drives: { [data.file.slot === 1 ? 'ssd1' : 'ssd2']: true },
-                  destinationPath: data.destinationPath,
-                  hyperdeckIp: connectedDevices.get(ws)
-                });
-
-                await fileWatcher.transferViaFTP({
-                  name: data.file.name,
-                  path: `ssd${data.file.slot}/${data.file.name}`,
-                  drive: `ssd${data.file.slot}`
-                });
-
-                // If a new filename was provided, rename the file
-                if (data.newFileName && data.newFileName !== data.file.name) {
-                  const oldPath = path.join(data.destinationPath, data.file.name);
-                  const newPath = path.join(data.destinationPath, data.newFileName);
+              case 'RENAME_FILE':
+                try {
+                  const oldPath = data.oldPath;
+                  const newName = data.newName;
+                  const dirPath = path.dirname(oldPath);
+                  const newPath = path.join(dirPath, newName);
+              
+                  console.log('Renaming file:', {
+                    oldPath,
+                    newPath,
+                    newName
+                  });
+              
                   await fs.rename(oldPath, newPath);
+                  
+                  ws.send(JSON.stringify({
+                    type: 'FILE_RENAMED',
+                    message: 'File renamed successfully',
+                    oldName: path.basename(oldPath),
+                    newName: newName
+                  }));
+                } catch (error) {
+                  console.error('Error renaming file:', error);
+                  ws.send(JSON.stringify({
+                    type: 'ERROR',
+                    message: `Failed to rename file: ${error.message}`
+                  }));
                 }
+                break;
 
-                ws.send(JSON.stringify({
-                  type: 'RECORDING_SAVED',
-                  message: 'Recording saved successfully'
-                }));
-              } catch (error) {
-                console.error('Error saving recording:', error);
-                ws.send(JSON.stringify({
-                  type: 'ERROR',
-                  message: `Failed to save recording: ${error.message}`
-                }));
-              }
-              break;
+                case 'RENAME_MONITORED_FILE':
+                  try {
+                    console.log('Renaming monitored file:', {
+                      oldPath: data.oldPath,
+                      newName: data.newName
+                    });
 
-            case 'RENAME_FILE':
-              try {
-                const oldPath = data.oldPath;
-                const newName = data.newName;
-                const dirPath = path.dirname(oldPath);
-                
-                // Make sure the new name has the same extension as the old file
-                const oldExtension = path.extname(oldPath);
-                const newFileName = newName.endsWith(oldExtension) ? newName : `${newName}${oldExtension}`;
-                const newPath = path.join(dirPath, newFileName);
-            
-                console.log('Renaming file:', {
-                  oldPath,
-                  newPath,
-                  newFileName
-                });
-            
-                await fs.rename(oldPath, newPath);
-                
-                ws.send(JSON.stringify({
-                  type: 'FILE_RENAMED',
-                  message: 'File renamed successfully',
-                  oldName: path.basename(oldPath),
-                  newName: newFileName
-                }));
-              } catch (error) {
-                console.error('Error renaming file:', error);
-                ws.send(JSON.stringify({
-                  type: 'ERROR',
-                  message: `Failed to rename file: ${error.message}`
-                }));
-              }
-              break;
+                    const dirPath = path.dirname(data.oldPath);
+                    const newPath = path.join(dirPath, data.newName);
+
+                    await fs.rename(data.oldPath, newPath);
+                    
+                    ws.send(JSON.stringify({
+                      type: 'FILE_RENAMED',
+                      message: 'File renamed successfully',
+                      oldName: path.basename(data.oldPath),
+                      newName: data.newName
+                    }));
+                  } catch (error) {
+                    console.error('Error renaming monitored file:', error);
+                    ws.send(JSON.stringify({
+                      type: 'ERROR',
+                      message: `Failed to rename file: ${error.message}`
+                    }));
+                  }
+                  break;
 
         default:
           ws.send(JSON.stringify({

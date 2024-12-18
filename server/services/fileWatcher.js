@@ -154,8 +154,13 @@ class FileWatcher extends EventEmitter {
 
   async startMonitoring() {
     try {
-      if (!fs.existsSync(this.destinationPath)) {
-        throw new Error('Destination path does not exist');
+      // Create destination directory if it doesn't exist
+      try {
+        await fs.ensureDir(this.destinationPath);
+        console.log('Destination directory ensured:', this.destinationPath);
+      } catch (dirError) {
+        console.error('Error creating destination directory:', dirError);
+        throw new Error(`Failed to create destination directory: ${dirError.message}`);
       }
 
       // Store initial file list
@@ -268,6 +273,23 @@ class FileWatcher extends EventEmitter {
     }
   }
 
+  async getLastTransferredFile() {
+    try {
+      const files = await this.getNewFiles();
+      if (files && files.length > 0) {
+        const lastFile = files[files.length - 1];
+        return {
+          name: lastFile.name,
+          path: path.join(this.destinationPath, lastFile.name)
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting last transferred file:', error);
+      return null;
+    }
+  }
+
   async stop() {
     try {
       if (this.isMonitoring) {
@@ -287,11 +309,11 @@ class FileWatcher extends EventEmitter {
 
         // Stop file watching
         this.isMonitoring = false;
-        for (const [drive, watcher] of this.watchers) {
-          watcher.close();
-          console.log(`Stopped watching ${drive}`);
+        for (const watcher of this.watchers.values()) {
+          await watcher.close();
         }
         this.watchers.clear();
+        this.lastKnownFiles.clear();
       }
     } catch (error) {
       console.error('Stop monitoring error:', error.stack);
