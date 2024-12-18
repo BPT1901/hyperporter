@@ -1,4 +1,3 @@
-// src/App.js
 import { useState } from 'react';
 import Dashboard from './components/Dashboard';
 import Tabs from './components/Tabs';
@@ -15,9 +14,14 @@ function App() {
   };
 
   const updateTabIp = (tabId, ipAddress) => {
-    setTabs(tabs.map(tab => 
-      tab.id === tabId ? { ...tab, ipAddress } : tab
-    ));
+    console.log('updateTabIp called with:', { tabId, ipAddress });
+    setTabs(prevTabs => {
+      const newTabs = prevTabs.map(tab => 
+        tab.id === tabId ? { ...tab, ipAddress } : tab
+      );
+      console.log('Updated tabs:', newTabs);
+      return newTabs;
+    });
   };
 
   return (

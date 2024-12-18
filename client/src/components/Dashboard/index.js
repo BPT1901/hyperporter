@@ -74,8 +74,26 @@ const connectWebSocket = useCallback(() => {
         
         switch (data.type) {
           case 'CONNECTED':
-            setIsConnected(true);
-            setTransferStatus({ message: 'Connected to HyperDeck', type: 'success' });
+          setIsConnected(true);
+          setTransferStatus({ message: 'Connected to HyperDeck', type: 'success' });
+          // Call onConnect with the IP address to update the tab
+          if (onConnect) {
+            onConnect(ipAddress);
+          }
+          break;
+
+          case 'CONNECT_HYPERDECK_RESPONSE':
+            console.log('Received CONNECT_HYPERDECK_RESPONSE:', data);
+            if (data.success) {
+              setIsConnected(true);
+              setTransferStatus({ message: 'Connected to HyperDeck', type: 'success' });
+              console.log('Calling onConnect with IP:', ipAddress);
+              if (onConnect) {
+                onConnect(ipAddress);
+              }
+            } else {
+              showNotification(data.message || 'Connection failed', 'error');
+            }
             break;
     
           case 'MONITORING_STARTED':
