@@ -62,8 +62,8 @@ wss.on('connection', (ws, req) => {
         case 'CONNECT_HYPERDECK':
           try {
             await hyperdeckService.connect(data.ipAddress);
-            connectedDevices.set(ws, data.ipAddress); // Store the connection
-        
+            connectedDevices.set(ws, data.ipAddress);
+
             // After connecting, scan both slots
             await hyperdeckService.sendCommand('slot select: 1');
             let clips1 = await hyperdeckService.getClipList();
@@ -82,13 +82,15 @@ wss.on('connection', (ws, req) => {
             }));
             
             ws.send(JSON.stringify({ 
-              type: 'CONNECTED',
+              type: 'CONNECT_HYPERDECK_RESPONSE', // Changed from 'CONNECTED'
+              success: true,
               message: 'Successfully connected to HyperDeck'
             }));
           } catch (error) {
             console.error('Error connecting to HyperDeck:', error);
             ws.send(JSON.stringify({ 
-              type: 'ERROR', 
+              type: 'CONNECT_HYPERDECK_RESPONSE', // Changed from 'ERROR'
+              success: false,
               message: 'Failed to connect to HyperDeck: ' + error.message 
             }));
           }

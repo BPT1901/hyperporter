@@ -16,9 +16,13 @@ function App() {
   const updateTabIp = (tabId, ipAddress) => {
     console.log('updateTabIp called with:', { tabId, ipAddress });
     setTabs(prevTabs => {
-      const newTabs = prevTabs.map(tab => 
-        tab.id === tabId ? { ...tab, ipAddress } : tab
-      );
+      const newTabs = prevTabs.map(tab => {
+        if (tab.id === tabId) {
+          console.log('Updating tab', tab.id, 'with IP', ipAddress);
+          return { ...tab, ipAddress };
+        }
+        return tab;
+      });
       console.log('Updated tabs:', newTabs);
       return newTabs;
     });

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import FileList from '../FileList';
-import { AlertCircle, Check, HardDrive, Folder, Save } from 'lucide-react';
+import { AlertCircle, Check, HardDrive, Save } from 'lucide-react';
 
 const Notification = ({ message, type }) => (
   <div className={`notification ${type}`}>
@@ -23,7 +23,6 @@ const Dashboard = ({ onConnect }) => {
   const [notification, setNotification] = useState(null);
   const [newFileName, setNewFileName] = useState('');
   const [lastTransferredFile, setLastTransferredFile] = useState(null);
-  const [isReconnecting, setIsReconnecting] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
 
   // Notification helper
@@ -33,39 +32,35 @@ const Dashboard = ({ onConnect }) => {
   }, []);
 
   // WebSocket connection handler
-const connectWebSocket = useCallback(() => {
-  let socket = null;
-    
-  try {
-    socket = new WebSocket('ws://localhost:3001/ws');
-    setWs(socket);
-
-    socket.onopen = () => {
-      console.log('WebSocket connected successfully');
-      setWsConnected(true);
-      showNotification('Connected to application server', 'success');
-    };
-
-    socket.onclose = () => {
-      console.log('WebSocket disconnected');
-      setWsConnected(false);
-      setIsConnected(false);
-      setIsMonitoring(false);
-      showNotification('Connection lost - retrying...', 'error');
+  const connectWebSocket = useCallback(() => {
+    let socket = null;
       
-      // Retry connection after delay
-      setTimeout(() => {
-        if (!wsConnected) {
-          connectWebSocket();
-        }
-      }, 5000);
-    };
-
-    socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setWsConnected(false);
-      showNotification('Connection error occurred', 'error');
-    };
+    try {
+      socket = new WebSocket('ws://localhost:3001/ws');
+  
+      socket.onopen = () => {
+        console.log('WebSocket connected successfully');
+        setWsConnected(true);
+        showNotification('Connected to application server', 'success');
+      };
+  
+      socket.onclose = () => {
+        console.log('WebSocket disconnected');
+        // Batch state updates to prevent loops
+        setWsConnected(false);
+        setIsConnected(false);
+        setIsMonitoring(false);
+        showNotification('Connection lost - retrying...', 'error');
+        
+        // Schedule reconnect without checking wsConnected
+        setTimeout(connectWebSocket, 5000);
+      };
+  
+      socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        // Only set WebSocket status
+        setWsConnected(false);
+      };
 
     socket.onmessage = (event) => {
       try {
@@ -74,23 +69,15 @@ const connectWebSocket = useCallback(() => {
         
         switch (data.type) {
           case 'CONNECTED':
-          setIsConnected(true);
-          setTransferStatus({ message: 'Connected to HyperDeck', type: 'success' });
-          // Call onConnect with the IP address to update the tab
-          if (onConnect) {
-            onConnect(ipAddress);
-          }
-          break;
-
-          case 'CONNECT_HYPERDECK_RESPONSE':
-            console.log('Received CONNECT_HYPERDECK_RESPONSE:', data);
-            if (data.success) {
-              setIsConnected(true);
-              setTransferStatus({ message: 'Connected to HyperDeck', type: 'success' });
-              console.log('Calling onConnect with IP:', ipAddress);
-              if (onConnect) {
-                onConnect(ipAddress);
-              }
+          case 'CONNECT_HYPERDECK_RESPONSE': // Handle both types
+            if (data.success || data.message === 'Successfully connected to HyperDeck') {
+              Promise.resolve().then(() => {
+                setIsConnected(true);
+                showNotification('Successfully connected to HyperDeck', 'success');
+                if (onConnect) {
+                  onConnect(ipAddress);
+                }
+              });
             } else {
               showNotification(data.message || 'Connection failed', 'error');
             }
@@ -98,20 +85,21 @@ const connectWebSocket = useCallback(() => {
     
           case 'MONITORING_STARTED':
             setIsMonitoring(true);
-            setTransferStatus({ message: 'Monitoring started', type: 'success' });
+            showNotification('Monitoring started', 'success');
             break;
     
-            case 'MONITORING_STOPPED':
-            setIsMonitoring(false);
-            if (data.lastTransferredFile) {
-              setLastTransferredFile(data.lastTransferredFile);
-              // Get just the filename from the full path
-              const fileName = data.fileName ? data.fileName : data.lastTransferredFile.split('/').pop();
-              setNewFileName(fileName.replace('.mp4', ''));
-              showNotification('Monitoring stopped - You can now rename the last transferred file', 'info');
-            } else {
-              showNotification('Monitoring stopped', 'info');
-            }
+          case 'MONITORING_STOPPED':
+            Promise.resolve().then(() => {
+              setIsMonitoring(false);
+              if (data.lastTransferredFile) {
+                setLastTransferredFile(data.lastTransferredFile);
+                const fileName = data.fileName ? data.fileName : data.lastTransferredFile.split('/').pop();
+                setNewFileName(fileName.replace('.mp4', ''));
+                showNotification('Monitoring stopped - You can now rename the last transferred file', 'info');
+              } else {
+                showNotification('Monitoring stopped', 'info');
+              }
+            });
             break;
     
           case 'FILE_RENAMED':
@@ -125,11 +113,11 @@ const connectWebSocket = useCallback(() => {
             setTransferStatus({ message: `Transfer completed: ${data.file}`, type: 'success' });
             break;
 
-          case 'RECORDING_SAVED':
-            showNotification('File saved successfully', 'success');
-            setNewFileName('');
-            setLastTransferredFile(null);
-            break;
+            case 'RECORDING_SAVED':
+              showNotification('Your file has been successfully transferred', 'success');
+              setNewFileName('');
+              setLastTransferredFile(null);
+              break;
     
           case 'TRANSFER_FAILED':
             setTransferStatus({ message: `Transfer failed: ${data.error}`, type: 'error' });
@@ -143,12 +131,13 @@ const connectWebSocket = useCallback(() => {
         showNotification('Error processing server message', 'error');
       }
     };
+    setWs(socket);
 
   } catch (error) {
     console.error('WebSocket connection error:', error);
     showNotification('Failed to connect to WebSocket', 'error');
   }
-}, [showNotification, wsConnected]);
+}, [showNotification]);
 
 
   // Initialize WebSocket connection
@@ -157,10 +146,9 @@ const connectWebSocket = useCallback(() => {
     
     // Cleanup function
     return () => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      if (ws) {
+        console.log('Cleaning up WebSocket connection');
         ws.close();
-        setWs(null);
-        setWsConnected(false);
       }
     };
   }, [connectWebSocket]);
@@ -180,14 +168,6 @@ const connectWebSocket = useCallback(() => {
       showNotification('Failed to send message', 'error');
     }
   }, [ws, wsConnected, showNotification]);
-
-  // Initialize WebSocket connection
-  useEffect(() => {
-    const cleanup = connectWebSocket();
-    return () => {
-      if (cleanup) cleanup();
-    };
-  }, [connectWebSocket]);
 
     // HyperDeck connection handler
     const connectToHyperdeck = useCallback(async () => {
@@ -217,21 +197,13 @@ const connectWebSocket = useCallback(() => {
     }, [ipAddress, ws, showNotification]);
 
   // File system handlers
-  const sanitizePath = useCallback((path) => {
-    try {
-      return window.electron.path.join(path);
-    } catch (error) {
-      console.error('Error sanitizing path:', error);
-      return path;
-    }
-  }, []);
 
   const handleFolderSelect = useCallback(async () => {
     try {
       const selectedPath = await window.electron.dialog.selectDirectory();
       if (selectedPath) {
         setSettings(prev => ({ ...prev, destinationPath: selectedPath }));
-        setTransferStatus({ message: `Folder selected: ${selectedPath}`, type: 'success' });
+        showNotification(`Folder selected: ${selectedPath}`, 'success');
       }
     } catch (error) {
       console.error('Error selecting folder:', error);
