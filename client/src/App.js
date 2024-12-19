@@ -14,16 +14,29 @@ function App() {
   };
 
   const updateTabIp = (tabId, ipAddress) => {
-    console.log('updateTabIp called with:', { tabId, ipAddress });
+    console.log('updateTabIp called:', {
+      tabId,
+      ipAddress,
+      currentTabs: tabs,
+      activeTab
+    });
+    
     setTabs(prevTabs => {
+      console.log('Updating tabs:', {
+        prevTabs,
+        tabToUpdate: tabId,
+        newIp: ipAddress
+      });
+      
       const newTabs = prevTabs.map(tab => {
         if (tab.id === tabId) {
-          console.log('Updating tab', tab.id, 'with IP', ipAddress);
+          console.log('Found matching tab:', tab.id);
           return { ...tab, ipAddress };
         }
         return tab;
       });
-      console.log('Updated tabs:', newTabs);
+      
+      console.log('New tabs state:', newTabs);
       return newTabs;
     });
   };
@@ -44,9 +57,17 @@ function App() {
           style={{ display: activeTab === index ? 'block' : 'none' }}
         >
           <Dashboard 
-            onConnect={(ipAddress) => updateTabIp(tab.id, ipAddress)}
-          />
-        </div>
+      onConnect={(ip) => {
+        console.log('Dashboard triggered onConnect:', {
+          tabId: tab.id,
+          ip,
+          activeTab,
+          currentTab: index
+        });
+        updateTabIp(tab.id, ip);
+      }}
+    />
+  </div>
       ))}
     </>
   );

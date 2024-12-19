@@ -36,6 +36,12 @@ const Dashboard = ({ onConnect }) => {
     let socket = null;
       
     try {
+      // Prevent creating a new connection if one exists
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log('WebSocket already connected');
+        return;
+      }
+  
       socket = new WebSocket('ws://localhost:3001/ws');
   
       socket.onopen = () => {
@@ -46,13 +52,15 @@ const Dashboard = ({ onConnect }) => {
   
       socket.onclose = () => {
         console.log('WebSocket disconnected');
-        // Batch state updates to prevent loops
-        setWsConnected(false);
-        setIsConnected(false);
-        setIsMonitoring(false);
+        // Batch these state updates
+        Promise.resolve().then(() => {
+          setWsConnected(false);
+          setIsConnected(false);
+          setIsMonitoring(false);
+        });
         showNotification('Connection lost - retrying...', 'error');
         
-        // Schedule reconnect without checking wsConnected
+        // Use setTimeout without checking state
         setTimeout(connectWebSocket, 5000);
       };
   
@@ -69,15 +77,25 @@ const Dashboard = ({ onConnect }) => {
         
         switch (data.type) {
           case 'CONNECTED':
-          case 'CONNECT_HYPERDECK_RESPONSE': // Handle both types
+          case 'CONNECT_HYPERDECK_RESPONSE':
             if (data.success || data.message === 'Successfully connected to HyperDeck') {
-              Promise.resolve().then(() => {
-                setIsConnected(true);
-                showNotification('Successfully connected to HyperDeck', 'success');
-                if (onConnect) {
-                  onConnect(ipAddress);
-                }
+              // Use the IP address from the response data
+              const connectedIp = data.ipAddress;
+              console.log('HyperDeck Connection Success:', {
+                responseIp: connectedIp,
+                onConnectExists: !!onConnect,
+                data
               });
+              
+              setIsConnected(true);
+              showNotification('Successfully connected to HyperDeck', 'success');
+              
+              if (onConnect && connectedIp) {
+                console.log('Calling onConnect with:', connectedIp);
+                onConnect(connectedIp);
+              } else {
+                console.warn('onConnect not available or IP missing');
+              }
             } else {
               showNotification(data.message || 'Connection failed', 'error');
             }
@@ -142,16 +160,19 @@ const Dashboard = ({ onConnect }) => {
 
   // Initialize WebSocket connection
   useEffect(() => {
-    connectWebSocket();
+    const connect = () => {
+      connectWebSocket();
+    };
     
-    // Cleanup function
+    connect();
+  
     return () => {
-      if (ws) {
-        console.log('Cleaning up WebSocket connection');
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
     };
   }, [connectWebSocket]);
+    
 
   // Send message helper with connection check
   const sendMessage = useCallback((message) => {

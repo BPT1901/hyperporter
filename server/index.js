@@ -84,7 +84,8 @@ wss.on('connection', (ws, req) => {
             ws.send(JSON.stringify({ 
               type: 'CONNECT_HYPERDECK_RESPONSE', // Changed from 'CONNECTED'
               success: true,
-              message: 'Successfully connected to HyperDeck'
+              message: 'Successfully connected to HyperDeck',
+              ipAddress: data.ipAddress
             }));
           } catch (error) {
             console.error('Error connecting to HyperDeck:', error);
