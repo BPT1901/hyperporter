@@ -7,6 +7,8 @@ const FileList = ({ ws, isConnected }) => {
   const [destinationPath, setDestinationPath] = useState('');
   const [newFileName, setNewFileName] = useState('');
   const [error, setError] = useState(null);
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferProgress, setTransferProgress] = useState(0);
 
   useEffect(() => {
     if (!ws || !isConnected) {
@@ -37,6 +39,15 @@ const FileList = ({ ws, isConnected }) => {
             console.log('Connected to HyperDeck, requesting file list');
             requestFileList();
             break;
+            case 'TRANSFER_PROGRESS':
+              setTransferProgress(data.progress);
+              setIsTransferring(true);
+              break;
+            case 'RECORDING_SAVED':
+              setIsTransferring(false);
+              setTransferProgress(0);
+              setError(null);
+              break;
           default:
             console.log('Unhandled message type:', data.type);
         }
@@ -172,13 +183,31 @@ const FileList = ({ ws, isConnected }) => {
             onChange={handleFileNameChange}
             placeholder="Enter new file name"
           />
-          <button
-            className="btn"
-            onClick={handleSave}
-            disabled={!destinationPath || !newFileName || !selectedFile}
-          >
-            <Save size={18} />
-          </button>
+          <div className="flex items-center space-x-2"> {/* Only changed this container */}
+            <button
+              className="btn"
+              onClick={handleSave}
+              disabled={!destinationPath || !newFileName || !selectedFile || isTransferring}
+            >
+              <span className="flex items-center justify-center">
+                {isTransferring ? (
+                  <div className="animate-spin">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                  </div>
+                ) : (
+                  <Save size={18} />
+                )}
+              </span>
+            </button>
+            {isTransferring && (
+              <span className="text-sm text-white whitespace-nowrap">
+                {Math.round(transferProgress)}%
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </>

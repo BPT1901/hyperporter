@@ -128,8 +128,34 @@ class FileWatcher extends EventEmitter {
       // Navigate to the correct drive directory
       await client.cd(fileInfo.drive);
       
+      // Get file size for progress calculation
+      const fileList = await client.list();
+      const targetFile = fileList.find(f => f.name === fileInfo.name);
+      
+      if (!targetFile) {
+        throw new Error(`File ${fileInfo.name} not found`);
+      }
+
+      const totalSize = targetFile.size;
+      let downloadedSize = 0;
+
+      // Set up progress tracking
+      client.trackProgress(info => {
+        downloadedSize = info.bytes;
+        const progress = Math.round((downloadedSize / totalSize) * 100);
+        this.emit('transferProgress', {
+          type: 'TRANSFER_PROGRESS',
+          progress: progress,
+          filename: fileInfo.name
+        });
+      });
+      
       // Download the file
       await client.downloadTo(destinationPath, fileInfo.name);
+
+      // Stop tracking progress
+      client.trackProgress();
+
       console.log(`Successfully downloaded ${fileInfo.name}`);
       
       this.emit('transferProgress', {
