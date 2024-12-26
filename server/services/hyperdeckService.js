@@ -3,6 +3,7 @@ const net = require('net');
 const EventEmitter = require('events');
 
 class HyperdeckService extends EventEmitter {
+  // === Constructor ===
   constructor() {
     super();
     this.client = null;
@@ -13,19 +14,30 @@ class HyperdeckService extends EventEmitter {
     this.buffer = '';
     this.currentCommand = null;
     this.clipList = [];
+    this.currentSlot = null;
   }
 
+  // === Connection Management ===
   connect(ipAddress) {
     return new Promise((resolve, reject) => {
       if (this.connected) {
         this.disconnect();
       }
   
+      console.log(`Attempting to connect to HyperDeck at ${ipAddress}`);
       this.ipAddress = ipAddress;
       this.client = new net.Socket();
   
+      // Add connection timeout
+      const connectionTimeout = setTimeout(() => {
+        console.log(`Connection attempt to ${ipAddress} timed out`);
+        this.client.destroy();
+        reject(new Error(`Connection timed out for ${ipAddress}`));
+      }, 10000); // 10 second timeout
+  
       this.client.connect(9993, ipAddress, () => {
         console.log('Connected to Hyperdeck at:', ipAddress);
+        clearTimeout(connectionTimeout);  // Clear timeout on successful connection
         this.connected = true;
         
         // Set up data handling
@@ -33,12 +45,13 @@ class HyperdeckService extends EventEmitter {
           this.buffer += data.toString();
           this.processBuffer();
         });
-
+  
         resolve(true);
       });
   
       this.client.on('error', (error) => {
         console.error('Hyperdeck connection error:', error);
+        clearTimeout(connectionTimeout);  // Clear timeout on error
         this.connected = false;
         reject(error);
       });
@@ -46,6 +59,47 @@ class HyperdeckService extends EventEmitter {
       this.client.on('close', () => {
         console.log('Hyperdeck connection closed');
         this.connected = false;
+      });
+    });
+  }
+
+  disconnect() {
+    this.stopMonitoring();
+    if (this.client) {
+      this.client.destroy();
+      this.client = null;
+    }
+    this.connected = false;
+    this.currentCommand = null;
+    this.currentSlot = null;
+    this.buffer = '';
+    this.clipList = [];
+  }
+
+  // === Command and Response Handling ===
+  async sendCommand(command) {
+    if (!this.connected) {
+      throw new Error('Not connected to Hyperdeck');
+    }
+
+    return new Promise((resolve, reject) => {
+      this.currentCommand = command;
+      console.log('Sending command:', command);
+      
+      // Track slot selection
+      const slotMatch = command.match(/slot select: (\d+)/);
+      if (slotMatch) {
+        this.currentSlot = parseInt(slotMatch[1]);
+        console.log('Set current slot to:', this.currentSlot);
+      }
+      
+      this.client.write(command + '\r\n', (error) => {
+        if (error) {
+          this.currentCommand = null;
+          reject(error);
+        } else {
+          resolve();
+        }
       });
     });
   }
@@ -68,18 +122,46 @@ class HyperdeckService extends EventEmitter {
     });
   }
 
+  parseResponse(response) {
+    // Handle error responses
+    if (response.startsWith('100 syntax error')) {
+      console.log('Received syntax error from HyperDeck');
+      return;
+    }
+
+    // Parse slot info
+    if (response.includes('slot id:')) {
+      const slotMatch = response.match(/slot id: (\d+)/);
+      const statusMatch = response.match(/status: (\w+)/);
+      const recordingMatch = response.match(/recording time: (\d+:\d+:\d+:\d+)/);
+      
+      if (slotMatch && statusMatch) {
+        const status = {
+          slot: slotMatch[1],
+          status: statusMatch[1],
+          recordingTime: recordingMatch ? recordingMatch[1] : null,
+          mounted: statusMatch[1] === 'mounted'
+        };
+        
+        console.log(`Slot ${status.slot} status:`, status);
+        this.emit('slotStatus', status);
+      }
+    }
+  }
+
+  // === Clip Management ===
   processClipResponse(line) {
     console.log('Processing clip response:', line);
-  
+
     if (line.startsWith('205 clips info:')) {
       console.log('Starting new clip list');
       this.clipList = [];
+      this.clipCount = null;
     }
     else if (line.startsWith('clip count:')) {
       this.clipCount = parseInt(line.split(': ')[1], 10);
       console.log('Got clip count:', this.clipCount);
       if (this.clipCount === 0) {
-        // If no clips, emit empty list immediately
         console.log('No clips found, emitting empty list');
         this.emit('clipList', []);
         this.currentCommand = null;
@@ -92,9 +174,11 @@ class HyperdeckService extends EventEmitter {
           id: clipMatch[1],
           name: clipMatch[2],
           startTime: clipMatch[3],
-          duration: clipMatch[4]
+          duration: clipMatch[4],
+          slot: this.currentSlot  // Use tracked slot number
         };
-        console.log('Adding clip:', clip);
+        
+        console.log(`Adding clip for slot ${this.currentSlot}:`, clip);
         this.clipList.push(clip);
         
         if (this.clipCount && this.clipList.length === this.clipCount) {
@@ -105,50 +189,12 @@ class HyperdeckService extends EventEmitter {
           this.currentCommand = null;
         }
       } else if (line.match(/^[0-9]{3}/)) {
-        // This is a response code line
         console.log('Response code line:', line);
       }
     }
   }
 
-  parseResponse(response) {
-    // Parse slot info
-    if (response.includes('slot id:')) {
-      const slotMatch = response.match(/slot id: (\d+)/);
-      const statusMatch = response.match(/status: (\w+)/);
-      const recordingMatch = response.match(/recording time: (\d+:\d+:\d+:\d+)/);
-      
-      if (slotMatch && statusMatch) {
-        this.emit('slotStatus', {
-          slot: slotMatch[1],
-          status: statusMatch[1],
-          recordingTime: recordingMatch ? recordingMatch[1] : null
-        });
-      }
-    }
-  }
-
-  async sendCommand(command) {
-    if (!this.connected) {
-      throw new Error('Not connected to Hyperdeck');
-    }
-
-    return new Promise((resolve, reject) => {
-      this.currentCommand = command;
-      console.log('Sending command:', command); // Debug logging
-      
-      this.client.write(command + '\r\n', (error) => {
-        if (error) {
-          this.currentCommand = null;
-          reject(error);
-        } else {
-          resolve();
-        }
-      });
-    });
-  }
-
-  async getClipList() {
+  async getClipList(slot) {
     if (!this.connected) {
       throw new Error('Not connected to Hyperdeck');
     }
@@ -160,25 +206,58 @@ class HyperdeckService extends EventEmitter {
         console.log('Clip list request timed out');
         console.log('Current clip list:', this.clipList);
         console.log('Current clip count:', this.clipCount);
-        reject(new Error('Timeout waiting for clip list'));
-      }, 15000); // Increased timeout to 15 seconds
+        resolve([]);
+      }, 15000);
   
       const handleClipList = (clips) => {
         console.log('Successfully received clip list:', clips);
         clearTimeout(timeout);
         this.removeListener('clipList', handleClipList);
-        resolve(clips);
+        
+        // Transform the clips to include the slot number
+        const transformedClips = clips.map(clip => ({
+          ...clip,
+          slot: slot
+        }));
+        
+        resolve(transformedClips);
       };
   
       this.on('clipList', handleClipList);
   
-      this.sendCommand('clips get')
-        .catch((error) => {
-          console.error('Error sending clip list command:', error);
-          clearTimeout(timeout);
-          this.removeListener('clipList', handleClipList);
-          reject(error);
-        });
+      // Use the proper disk list command with slot ID
+      setTimeout(() => {
+        this.sendCommand(`disk list: slot id: ${slot}`)
+          .catch((error) => {
+            console.error('Error sending clip list command:', error);
+            clearTimeout(timeout);
+            this.removeListener('clipList', handleClipList);
+            resolve([]);
+          });
+      }, 1000);
+    });
+  }
+
+  // === Status and Monitoring ===
+  async checkSlotStatus(slot) {
+    return new Promise((resolve) => {
+      const handler = (response) => {
+        if (response.includes(`slot id: ${slot}`)) {
+          const statusMatch = response.match(/status: (\w+)/);
+          const isMounted = statusMatch && statusMatch[1] === 'mounted';
+          this.removeListener('response', handler);
+          resolve(isMounted);
+        }
+      };
+
+      this.on('response', handler);
+      this.sendCommand(`slot info: ${slot}`);
+
+      // Timeout after 3 seconds
+      setTimeout(() => {
+        this.removeListener('response', handler);
+        resolve(false);
+      }, 3000);
     });
   }
 
@@ -210,18 +289,6 @@ class HyperdeckService extends EventEmitter {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
     }
-  }
-
-  disconnect() {
-    this.stopMonitoring();
-    if (this.client) {
-      this.client.destroy();
-      this.client = null;
-    }
-    this.connected = false;
-    this.currentCommand = null;
-    this.buffer = '';
-    this.clipList = [];
   }
 }
 

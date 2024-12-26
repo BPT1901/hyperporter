@@ -8,6 +8,7 @@ const FileWatcher = require('./services/fileWatcher');
 const hyperdeckService = require('./services/hyperdeckService');
 const path = require('path');
 const fs = require('fs-extra');
+const ftp = require('basic-ftp');
 
 // Express app setup
 const app = express();
@@ -16,6 +17,53 @@ const PORT = 3001;
 // Track connected HyperDecks and their IPs
 const connectedDevices = new Map();
 const activeWatchers = new Map();
+
+async function verifyClipExistence(ipAddress, slot, clipName) {
+  const client = new ftp.Client();
+  client.ftp.verbose = false;
+  try {
+    await client.access({
+      host: ipAddress,
+      user: "anonymous",
+      password: "anonymous",
+      secure: false
+    });
+    
+    try {
+      // Try to change to the slot directory
+      await client.cd(`ssd${slot}`);
+      const files = await client.list();
+      
+      // Check if the clip exists in this slot
+      const exists = files.some(file => file.name === clipName);
+      console.log(`Verified clip ${clipName} in slot ${slot}: ${exists}`);
+      return exists;
+    } catch (error) {
+      console.log(`No files in ssd${slot} or directory not accessible`);
+      return false;
+    }
+  } catch (error) {
+    console.log('FTP verification error:', error);
+    return false;
+  } finally {
+    client.close();
+  }
+}
+
+// Checking if slots are mounted
+async function getSlotClips(slot) {
+  try {
+    // Get clips for the specific slot using the proper command
+    const clips = await hyperdeckService.getClipList(slot);
+    console.log(`Got clips for slot ${slot}:`, clips);
+    return clips;
+  } catch (error) {
+    console.log(`Error getting clips from Slot ${slot}:`, error);
+    return [];
+  }
+}
+
+
 
 // Middleware
 app.use(cors({
@@ -59,22 +107,19 @@ wss.on('connection', (ws, req) => {
       console.log('Received message:', data);
 
       switch (data.type) {
+        
         case 'CONNECT_HYPERDECK':
           try {
             await hyperdeckService.connect(data.ipAddress);
             connectedDevices.set(ws, data.ipAddress);
 
-            // After connecting, scan both slots
-            await hyperdeckService.sendCommand('slot select: 1');
-            let clips1 = await hyperdeckService.getClipList();
-            await hyperdeckService.sendCommand('slot select: 2');
-            let clips2 = await hyperdeckService.getClipList();
+            // Get clips from both slots with IP address
+            const slot1Clips = await getSlotClips(1, data.ipAddress);
+            const slot2Clips = await getSlotClips(2, data.ipAddress);
             
             // Combine clips from both slots
-            const allClips = [
-              ...clips1.map(clip => ({ ...clip, slot: 1 })),
-              ...clips2.map(clip => ({ ...clip, slot: 2 }))
-            ];
+            const allClips = [...slot1Clips, ...slot2Clips];
+            console.log('All verified clips:', allClips);
             
             ws.send(JSON.stringify({
               type: 'CLIP_LIST',
@@ -82,7 +127,7 @@ wss.on('connection', (ws, req) => {
             }));
             
             ws.send(JSON.stringify({ 
-              type: 'CONNECT_HYPERDECK_RESPONSE', // Changed from 'CONNECTED'
+              type: 'CONNECT_HYPERDECK_RESPONSE',
               success: true,
               message: 'Successfully connected to HyperDeck',
               ipAddress: data.ipAddress
@@ -90,7 +135,7 @@ wss.on('connection', (ws, req) => {
           } catch (error) {
             console.error('Error connecting to HyperDeck:', error);
             ws.send(JSON.stringify({ 
-              type: 'CONNECT_HYPERDECK_RESPONSE', // Changed from 'ERROR'
+              type: 'CONNECT_HYPERDECK_RESPONSE',
               success: false,
               message: 'Failed to connect to HyperDeck: ' + error.message 
             }));
@@ -98,30 +143,31 @@ wss.on('connection', (ws, req) => {
           break;
 
           case 'GET_FILE_LIST':
-        try {
-          // Scan both slots again for updated list
-          await hyperdeckService.sendCommand('slot select: 1');
-          let clips1 = await hyperdeckService.getClipList();
-          await hyperdeckService.sendCommand('slot select: 2');
-          let clips2 = await hyperdeckService.getClipList();
-          
-          const allClips = [
-            ...clips1.map(clip => ({ ...clip, slot: 1 })),
-            ...clips2.map(clip => ({ ...clip, slot: 2 }))
-          ];
-          
-          ws.send(JSON.stringify({
-            type: 'CLIP_LIST',
-            clips: allClips
-          }));
-        } catch (error) {
-          console.error('Error getting clip list:', error);
-          ws.send(JSON.stringify({
-            type: 'ERROR',
-            message: 'Failed to get clip list'
-          }));
-        }
-        break;
+            try {
+              // Get clips from both slots
+              const slot1Clips = await getSlotClips(1);
+              const slot2Clips = await getSlotClips(2);
+              
+              console.log('Slot 1 clips:', slot1Clips);
+              console.log('Slot 2 clips:', slot2Clips);
+              
+              // Combine all clips
+              const allClips = [...slot1Clips, ...slot2Clips];
+              
+              console.log('Sending combined clip list:', allClips);
+              
+              ws.send(JSON.stringify({
+                type: 'CLIP_LIST',
+                clips: allClips
+              }));
+            } catch (error) {
+              console.error('Error getting clip list:', error);
+              ws.send(JSON.stringify({
+                type: 'ERROR',
+                message: 'Failed to get clip list'
+              }));
+            }
+            break;
 
         case 'START_MONITORING':
         try {
