@@ -102,6 +102,114 @@ class FileWatcher extends EventEmitter {
       }
   }
 
+      async transferViaFTP(fileInfo) {
+        const client = new ftp.Client();
+        client.ftp.verbose = true;
+        try {
+          await client.access({
+            host: this.hyperdeckIp,
+            user: "anonymous",
+            password: "anonymous",
+            secure: false
+          });
+
+          const destinationPath = path.join(this.destinationPath, fileInfo.name);
+          console.log(`Attempting to download ${fileInfo.path} to ${destinationPath}`);
+          
+          await client.cd(fileInfo.drive);
+          
+          // Download the file
+          await client.downloadTo(destinationPath, fileInfo.name);
+          console.log(`Successfully downloaded ${fileInfo.name}`);
+          
+          this.emit('transferProgress', {
+            type: 'TRANSFER_COMPLETE',
+            filename: fileInfo.name,
+            destinationPath
+          });
+          
+          return destinationPath;
+        } catch (error) {
+          console.error(`Error in transferViaFTP for ${fileInfo.name}:`, error);
+          this.emit('error', {
+            type: 'TRANSFER_ERROR',
+            message: error.message,
+            filename: fileInfo.name
+          });
+          throw error;
+        } finally {
+          client.close();
+        }
+    }
+
+    async getFTPFileList() {
+        const client = new ftp.Client();
+        client.ftp.verbose = true;
+        try {
+          await client.access({
+            host: this.hyperdeckIp,
+            user: "anonymous",
+            password: "anonymous",
+            secure: false
+          });
+          
+          const allFiles = [];
+          
+          // Check which drives are enabled
+          if (this.drives.ssd1) {
+            try {
+              await client.cd('ssd1');
+              const ssd1Files = await client.list();
+              for (const file of ssd1Files) {
+                if (!file.name.startsWith('.') && file.name.endsWith('.mp4')) {
+                  allFiles.push({
+                    name: file.name,
+                    path: `ssd1/${file.name}`,
+                    drive: 'ssd1',
+                    date: file.date || new Date(),
+                    size: file.size
+                  });
+                }
+              }
+              await client.cd('..');
+            } catch (error) {
+              console.log('No files in ssd1 or directory not accessible');
+            }
+          }
+          
+          if (this.drives.ssd2) {
+            try {
+              await client.cd('ssd2');
+              const ssd2Files = await client.list();
+              for (const file of ssd2Files) {
+                if (!file.name.startsWith('.') && file.name.endsWith('.mp4')) {
+                  allFiles.push({
+                    name: file.name,
+                    path: `ssd2/${file.name}`,
+                    drive: 'ssd2',
+                    date: file.date || new Date(),
+                    size: file.size
+                  });
+                }
+              }
+              await client.cd('..');
+            } catch (error) {
+              console.log('No files in ssd2 or directory not accessible');
+            }
+          }
+
+          allFiles.sort((a, b) => b.name.localeCompare(a.name));
+          console.log('Found files:', allFiles);
+          return allFiles;
+          
+        } catch (error) {
+          console.error('Error getting FTP file list:', error);
+          throw error;
+        } finally {
+          client.close();
+        }
+    }
+
   async transferFile(filePath) {
     try {
       const filename = path.basename(filePath);
