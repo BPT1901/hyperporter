@@ -100,6 +100,14 @@ const Dashboard = ({ onConnect }) => {
               showNotification(data.message || 'Connection failed', 'error');
             }
             break;
+          
+          case 'RTSP_TEST_STATUS':
+              console.log('RTSP Test Status:', data.message, data.status);
+              setTransferStatus({
+                  message: data.message,
+                  type: 'success'
+              });
+          break;
     
           case 'MONITORING_STARTED':
             setIsMonitoring(true);
@@ -319,6 +327,17 @@ const Dashboard = ({ onConnect }) => {
             <p className={`status-text ${wsConnected ? 'text-success' : 'text-error'}`}>
               {wsConnected ? 'Connected' : 'Disconnected'}
             </p>
+            <button
+              className="btn"
+              onClick={() => {
+                  if (ws && isConnected) {
+                      ws.send(JSON.stringify({ type: 'TEST_RTSP' }));
+                  }
+              }}
+              disabled={!isConnected}
+          >
+              Test RTSP
+          </button>
           </div>
 
           <div className="input-group">

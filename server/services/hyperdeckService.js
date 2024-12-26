@@ -77,31 +77,49 @@ class HyperdeckService extends EventEmitter {
   }
 
     // RTSP Services
-  async startRtspStream(slot) {
-    try {
-      await this.sendCommand(`stream enable: true`);
-      await this.sendCommand(`slot select: ${slot}`);
-      await this.sendCommand(`stream format: rtsp`);
-      
-      const response = await this.sendCommand('stream info');
-      console.log('Stream info:', response);
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to start RTSP stream:', error);
-      throw error;
+
+      async startRtspStream(slot) {
+        try {
+            console.log(`Starting stream for slot ${slot}`);
+            
+            // Select the slot
+            await this.sendCommand(`slot select: ${slot}`);
+            
+            // Get the current transport status
+            const transportInfo = await this.sendCommand('transport info');
+            console.log('Transport info:', transportInfo);
+    
+            // Start recording
+            await this.sendCommand('record');
+            
+            return true;
+        } catch (error) {
+            console.error('Failed to start stream:', error);
+            throw error;
+        }
     }
-  }
-  
-  async stopRtspStream() {
-    try {
-      await this.sendCommand('stream enable: false');
-      return true;
-    } catch (error) {
-      console.error('Failed to stop RTSP stream:', error);
-      throw error;
+    
+    async stopRtspStream() {
+        try {
+            console.log('Stopping recording');
+            await this.sendCommand('stop');
+            return true;
+        } catch (error) {
+            console.error('Failed to stop recording:', error);
+            throw error;
+        }
     }
-  }
+    
+    async getStreamStatus() {
+        try {
+            const response = await this.sendCommand('transport info');
+            console.log('Transport status:', response);
+            return response;
+        } catch (error) {
+            console.error('Failed to get status:', error);
+            throw error;
+        }
+    }
 
   // === Command and Response Handling ===
   async sendCommand(command) {
