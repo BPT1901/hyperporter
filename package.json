@@ -25,7 +25,9 @@
     "react-scripts": "^5.0.1",
     "tailwindcss": "^3.4.16",
     "web-vitals": "^4.2.4",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "node-rtsp-stream": "^0.0.9",
+    "fluent-ffmpeg": "^2.1.2"
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
@@ -33,7 +35,8 @@
     "cross-env": "^7.0.3",
     "electron": "^25.3.1",
     "nodemon": "^3.0.3",
-    "wait-on": "^7.0.1"
+    "wait-on": "^7.0.1",
+    "electron-rebuild": "^3.2.9"
   },
   "eslintConfig": {
     "extends": [

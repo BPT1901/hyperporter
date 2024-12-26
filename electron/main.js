@@ -6,6 +6,17 @@ const net = require('net');
 // Single isDev declaration
 const isDev = process.env.NODE_ENV === 'development';
 
+// Set FFmpeg path for packaged app
+// const ffmpegPath = app.isPackaged
+//   ? path.join(process.resourcesPath, 'ffmpeg')
+//   : path.join(__dirname, 'ffmpeg');
+
+// Configure RTSP service with correct paths
+// const rtspService = new RtspService({
+//   ffmpegPath,
+//   resourcePath: app.isPackaged ? process.resourcesPath : __dirname
+// });
+
 function testHyperdeckConnection(ip) {
   return new Promise((resolve, reject) => {
     const testSocket = new net.Socket();

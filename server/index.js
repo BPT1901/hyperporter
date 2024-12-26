@@ -144,28 +144,29 @@ wss.on('connection', (ws, req) => {
 
           case 'GET_FILE_LIST':
             try {
-              // Get clips from both slots
-              const slot1Clips = await getSlotClips(1);
-              const slot2Clips = await getSlotClips(2);
-              
-              console.log('Slot 1 clips:', slot1Clips);
-              console.log('Slot 2 clips:', slot2Clips);
-              
-              // Combine all clips
-              const allClips = [...slot1Clips, ...slot2Clips];
-              
-              console.log('Sending combined clip list:', allClips);
-              
-              ws.send(JSON.stringify({
-                type: 'CLIP_LIST',
-                clips: allClips
-              }));
+                console.log('Scanning slots for clips...');
+                // Get clips from slot 1
+                const clips1 = await hyperdeckService.getClipList(1);
+                console.log('Slot 1 clips:', clips1);
+                
+                // Get clips from slot 2
+                const clips2 = await hyperdeckService.getClipList(2);
+                console.log('Slot 2 clips:', clips2);
+
+                // Combine clips from both slots
+                const allClips = [...clips1, ...clips2];
+                console.log('Sending combined clip list:', allClips);
+                
+                ws.send(JSON.stringify({
+                    type: 'CLIP_LIST',
+                    clips: allClips
+                }));
             } catch (error) {
-              console.error('Error getting clip list:', error);
-              ws.send(JSON.stringify({
-                type: 'ERROR',
-                message: 'Failed to get clip list'
-              }));
+                console.error('Error getting clip list:', error);
+                ws.send(JSON.stringify({
+                    type: 'ERROR',
+                    message: 'Failed to get clip list'
+                }));
             }
             break;
 

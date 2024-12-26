@@ -76,6 +76,33 @@ class HyperdeckService extends EventEmitter {
     this.clipList = [];
   }
 
+    // RTSP Services
+  async startRtspStream(slot) {
+    try {
+      await this.sendCommand(`stream enable: true`);
+      await this.sendCommand(`slot select: ${slot}`);
+      await this.sendCommand(`stream format: rtsp`);
+      
+      const response = await this.sendCommand('stream info');
+      console.log('Stream info:', response);
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to start RTSP stream:', error);
+      throw error;
+    }
+  }
+  
+  async stopRtspStream() {
+    try {
+      await this.sendCommand('stream enable: false');
+      return true;
+    } catch (error) {
+      console.error('Failed to stop RTSP stream:', error);
+      throw error;
+    }
+  }
+
   // === Command and Response Handling ===
   async sendCommand(command) {
     if (!this.connected) {
@@ -153,44 +180,43 @@ class HyperdeckService extends EventEmitter {
   processClipResponse(line) {
     console.log('Processing clip response:', line);
 
-    if (line.startsWith('205 clips info:')) {
-      console.log('Starting new clip list');
-      this.clipList = [];
-      this.clipCount = null;
+    // Handle disk list header
+    if (line.startsWith('206 disk list:')) {
+        console.log('Starting new disk list');
+        this.clipList = [];
+        return;
     }
-    else if (line.startsWith('clip count:')) {
-      this.clipCount = parseInt(line.split(': ')[1], 10);
-      console.log('Got clip count:', this.clipCount);
-      if (this.clipCount === 0) {
-        console.log('No clips found, emitting empty list');
-        this.emit('clipList', []);
-        this.currentCommand = null;
-      }
+
+    // Handle slot ID line
+    if (line.startsWith('slot id:')) {
+        this.currentSlot = parseInt(line.split(': ')[1], 10);
+        console.log('Processing slot:', this.currentSlot);
+        return;
     }
-    else {
-      const clipMatch = line.match(/^(\d+): (.+\.mp4) (\d{2}:\d{2}:\d{2}:\d{2}) (\d{2}:\d{2}:\d{2}:\d{2})/);
-      if (clipMatch) {
+
+    // Handle clip entries - updated regex to match actual HyperDeck format
+    // Example: "1: MAC BANK SUPER 5TH DEC_0001.mp4 H.264 1080p60 00:00:04:13"
+    const clipMatch = line.match(/^(\d+): (.+\.mp4) H\.264 .+ (\d{2}:\d{2}:\d{2}:\d{2})/);
+    if (clipMatch) {
         const clip = {
-          id: clipMatch[1],
-          name: clipMatch[2],
-          startTime: clipMatch[3],
-          duration: clipMatch[4],
-          slot: this.currentSlot  // Use tracked slot number
+            id: clipMatch[1],
+            name: clipMatch[2],
+            duration: clipMatch[3],
+            slot: this.currentSlot
         };
-        
+
         console.log(`Adding clip for slot ${this.currentSlot}:`, clip);
         this.clipList.push(clip);
-        
-        if (this.clipCount && this.clipList.length === this.clipCount) {
-          console.log('Reached last clip, emitting list of', this.clipList.length, 'clips');
-          this.emit('clipList', [...this.clipList]);
-          this.clipList = [];
-          this.clipCount = null;
-          this.currentCommand = null;
+    }
+
+    // When we get a new command response, emit the current list
+    if (line.startsWith('200') || line.startsWith('500')) {
+        if (this.clipList.length > 0) {
+            console.log('Command complete, emitting list of', this.clipList.length, 'clips');
+            this.emit('clipList', [...this.clipList]);
+            this.clipList = [];
         }
-      } else if (line.match(/^[0-9]{3}/)) {
-        console.log('Response code line:', line);
-      }
+        this.currentCommand = null;
     }
   }
 
@@ -198,43 +224,52 @@ class HyperdeckService extends EventEmitter {
     if (!this.connected) {
       throw new Error('Not connected to Hyperdeck');
     }
-  
+
     console.log('Getting clip list...');
-  
+
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        console.log('Clip list request timed out');
-        console.log('Current clip list:', this.clipList);
-        console.log('Current clip count:', this.clipCount);
-        resolve([]);
-      }, 15000);
-  
-      const handleClipList = (clips) => {
-        console.log('Successfully received clip list:', clips);
-        clearTimeout(timeout);
-        this.removeListener('clipList', handleClipList);
-        
-        // Transform the clips to include the slot number
-        const transformedClips = clips.map(clip => ({
-          ...clip,
-          slot: slot
-        }));
-        
-        resolve(transformedClips);
-      };
-  
-      this.on('clipList', handleClipList);
-  
-      // Use the proper disk list command with slot ID
-      setTimeout(() => {
+        const clips = [];
+        let currentSlotId = null;
+
+        const handleResponse = (response) => {
+            console.log('Processing response:', response);
+
+            // Handle the clip list entries
+            const clipMatch = response.match(/^(\d+): (.+) H\.264 .+ (\d{2}:\d{2}:\d{2}:\d{2})/);
+            if (clipMatch) {
+                console.log('Found clip:', clipMatch);
+                clips.push({
+                    id: clipMatch[1],
+                    name: clipMatch[2],
+                    duration: clipMatch[3],
+                    slot: slot
+                });
+            }
+
+            // Check if this is the end of the list (next command response)
+            if (response.startsWith('200') || response.startsWith('500')) {
+                console.log('End of clip list detected');
+                this.removeListener('response', handleResponse);
+                resolve(clips);
+            }
+        };
+
+        this.on('response', handleResponse);
+
+        // Send the command to get the clip list
         this.sendCommand(`disk list: slot id: ${slot}`)
-          .catch((error) => {
-            console.error('Error sending clip list command:', error);
-            clearTimeout(timeout);
-            this.removeListener('clipList', handleClipList);
-            resolve([]);
-          });
-      }, 1000);
+            .catch(error => {
+                console.error('Error sending clip list command:', error);
+                this.removeListener('response', handleResponse);
+                resolve([]);
+            });
+
+        // Set a reasonable timeout
+        setTimeout(() => {
+            console.log('Resolving clip list:', clips);
+            this.removeListener('response', handleResponse);
+            resolve(clips);
+        }, 5000);
     });
   }
 
@@ -265,17 +300,24 @@ class HyperdeckService extends EventEmitter {
     if (!this.connected) {
       throw new Error('Not connected to Hyperdeck');
     }
-
+  
     this.monitoring = true;
     this.monitoringInterval = setInterval(async () => {
       try {
         if (drives.ssd1) {
           await this.sendCommand('slot info: 1');
+          const transport = await this.sendCommand('transport info');
+          if (transport.includes('status: record')) {
+            this.emit('recordingStarted', { slot: 1 });
+          }
         }
         if (drives.ssd2) {
           await this.sendCommand('slot info: 2');
+          const transport = await this.sendCommand('transport info');
+          if (transport.includes('status: record')) {
+            this.emit('recordingStarted', { slot: 2 });
+          }
         }
-        await this.sendCommand('transport info');
       } catch (error) {
         console.error('Error during monitoring:', error);
         this.emit('error', error);

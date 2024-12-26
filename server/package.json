@@ -17,6 +17,8 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "fs-extra": "^11.2.0",
+    "node-media-server": "^4.0.7",
+    "node-rtsp-stream": "^0.0.9",
     "ws": "^8.18.0"
   },
   "devDependencies": {

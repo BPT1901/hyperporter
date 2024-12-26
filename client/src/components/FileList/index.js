@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Clock, HardDrive, Save, Folder } from 'lucide-react';
 
 const FileList = ({ ws, isConnected }) => {
+  console.log('FileList component rendering with:', { ws: !!ws, isConnected });
   const [files, setFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [destinationPath, setDestinationPath] = useState('');
@@ -20,9 +21,12 @@ const FileList = ({ ws, isConnected }) => {
       try {
         const data = JSON.parse(event.data);
         console.log('FileList received message:', data);
+        console.log('FileList received raw message:', event.data);
+        console.log('FileList parsed message:', data);
 
         switch (data.type) {
           case 'CLIP_LIST':
+            console.log('Received CLIP_LIST data:', data);
             if (Array.isArray(data.clips)) {
               console.log('Setting files:', data.clips);
               setFiles(data.clips);
@@ -58,21 +62,27 @@ const FileList = ({ ws, isConnected }) => {
     };
 
     const requestFileList = () => {
-      console.log('Sending GET_FILE_LIST request');
-      ws.send(JSON.stringify({ type: 'GET_FILE_LIST' }));
+      try {
+        console.log('Attempting to send GET_FILE_LIST request');
+        ws.send(JSON.stringify({ type: 'GET_FILE_LIST' }));
+        console.log('GET_FILE_LIST request sent successfully');
+      } catch (error) {
+        console.error('Error sending GET_FILE_LIST request:', error);
+        setError('Failed to request file list');
+      }
     };
 
-    // Add message listener
+    console.log('Setting up WebSocket message listener');
     ws.addEventListener('message', handleMessage);
     
-    // Request initial file list
+    console.log('Requesting initial file list');
     requestFileList();
 
-    // Cleanup
     return () => {
+      console.log('Cleaning up WebSocket listener');
       ws.removeEventListener('message', handleMessage);
     };
-  }, [ws, isConnected]);
+}, [ws, isConnected]);
 
   const handleBrowse = async () => {
     try {
