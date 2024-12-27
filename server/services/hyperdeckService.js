@@ -121,6 +121,95 @@ class HyperdeckService extends EventEmitter {
         }
     }
 
+    async startTransportPolling(slot) {
+      if (!this.pollingIntervals) {
+          this.pollingIntervals = new Map();
+      }
+  
+      if (this.pollingIntervals.has(slot)) {
+          return; // Already polling this slot
+      }
+  
+      const interval = setInterval(async () => {
+          try {
+              await this.sendCommand(`slot select: ${slot}`);
+              const response = await new Promise((resolve) => {
+                  const handler = (data) => {
+                      if (data.includes('transport info:')) {
+                          this.removeListener('response', handler);
+                          resolve(data);
+                      }
+                  };
+                  this.on('response', handler);
+                  this.sendCommand('transport info');
+  
+                  // Timeout after 3 seconds
+                  setTimeout(() => {
+                      this.removeListener('response', handler);
+                      resolve(null);
+                  }, 3000);
+              });
+  
+              if (response) {
+                  this.parseAndEmitTransportInfo(response, slot);
+              }
+          } catch (error) {
+              console.error(`Transport polling error for slot ${slot}:`, error);
+          }
+      }, 1000); // Poll every second
+  
+      this.pollingIntervals.set(slot, interval);
+    }
+
+  stopTransportPolling(slot) {
+      if (this.pollingIntervals?.has(slot)) {
+          clearInterval(this.pollingIntervals.get(slot));
+          this.pollingIntervals.delete(slot);
+      }
+  }
+
+  parseAndEmitTransportInfo(response, slot) {
+    // First check if response exists and is a string
+    if (!response || typeof response !== 'string') {
+        console.log('No valid response to parse for transport info');
+        return;
+    }
+
+    try {
+        // Parse the multi-line response
+        const lines = response.split('\n');
+        let status = null;
+        let timecode = null;
+
+        for (const line of lines) {
+            if (line.includes('status:')) {
+                const statusMatch = line.match(/status: (\w+)/);
+                if (statusMatch) {
+                    status = statusMatch[1];
+                }
+            }
+            if (line.includes('timecode:')) {
+                const timecodeMatch = line.match(/timecode: (\d{2}:\d{2}:\d{2}:\d{2})/);
+                if (timecodeMatch) {
+                    timecode = timecodeMatch[1];
+                }
+            }
+        }
+
+        if (status) {
+            const transportInfo = {
+                slot,
+                status,
+                timecode
+            };
+            console.log('Emitting transport info:', transportInfo);
+            this.emit('transportInfo', transportInfo);
+        }
+    } catch (error) {
+        console.error('Error parsing transport info:', error);
+    }
+  }
+
   // === Command and Response Handling ===
   async sendCommand(command) {
     if (!this.connected) {

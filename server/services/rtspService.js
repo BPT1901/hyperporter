@@ -1,83 +1,74 @@
 // server/services/rtspService.js
 const RtspStream = require('node-rtsp-stream');
-const fs = require('fs-extra');
+const ffmpeg = require('fluent-ffmpeg');
 const path = require('path');
+const fs = require('fs-extra');
 
 class RtspService {
-  constructor() {
-    this.streams = new Map();
-    this.recordings = new Map();
-  }
-
-  startStream(hyperdeckIp, slot, destinationPath, filename) {
-    const streamKey = `${hyperdeckIp}_${slot}`;
-    
-    if (this.streams.has(streamKey)) {
-      console.log('Stream already exists for this slot');
-      return;
+    constructor() {
+        this.activeStreams = new Map();
     }
 
-    const rtspUrl = `rtsp://${hyperdeckIp}/stream-${slot}`;
-    console.log(`Starting RTSP stream from: ${rtspUrl}`);
-
-    try {
-      const stream = new RtspStream({
-        name: streamKey,
-        streamUrl: rtspUrl,
-        wsPort: 9999 + parseInt(slot),
-        ffmpegOptions: {
-          '-stats': '',
-          '-r': 30,
-          '-c:v': 'copy',
-          '-c:a': 'copy',
-          '-f': 'mp4',
+    async startStream(hyperdeckIp, slot, destinationPath, filename) {
+        const streamKey = `${hyperdeckIp}_${slot}`;
+        
+        if (this.activeStreams.has(streamKey)) {
+            console.log('Stream already exists for this slot');
+            return;
         }
-      });
 
-      const outputPath = path.join(destinationPath, filename);
-      const fileStream = fs.createWriteStream(outputPath);
+        const rtspUrl = `rtsp://${hyperdeckIp}:8554/slot${slot}`;
+        const outputPath = path.join(destinationPath, filename);
 
-      stream.on('data', (data) => {
-        fileStream.write(data);
-      });
+        console.log(`Starting RTSP stream: ${rtspUrl} to ${outputPath}`);
 
-      stream.on('error', (error) => {
-        console.error('RTSP Stream error:', error);
-        this.stopStream(hyperdeckIp, slot);
-      });
+        try {
+            const command = ffmpeg(rtspUrl)
+                .outputOptions([
+                    '-c:v copy',     // Copy video codec (no re-encoding)
+                    '-c:a copy'      // Copy audio codec
+                ])
+                .on('start', () => {
+                    console.log('Started RTSP stream recording');
+                })
+                .on('progress', (progress) => {
+                    console.log('Recording progress:', progress);
+                })
+                .on('error', (err) => {
+                    console.error('RTSP recording error:', err);
+                })
+                .on('end', () => {
+                    console.log('RTSP recording completed');
+                });
 
-      this.streams.set(streamKey, {
-        stream,
-        fileStream,
-        outputPath
-      });
+            command.save(outputPath);
 
-      return streamKey;
-    } catch (error) {
-      console.error('Failed to start RTSP stream:', error);
-      throw error;
+            this.activeStreams.set(streamKey, {
+                command,
+                outputPath
+            });
+
+            return streamKey;
+        } catch (error) {
+            console.error('Failed to start RTSP stream:', error);
+            throw error;
+        }
     }
-  }
 
-  stopStream(hyperdeckIp, slot) {
-    const streamKey = `${hyperdeckIp}_${slot}`;
-    const streamData = this.streams.get(streamKey);
-    
-    if (streamData) {
-      try {
-        streamData.stream.stop();
-        streamData.fileStream.end();
-        this.streams.delete(streamKey);
-        console.log(`Stopped stream: ${streamKey}`);
-      } catch (error) {
-        console.error('Error stopping stream:', error);
-      }
+    async stopStream(hyperdeckIp, slot) {
+        const streamKey = `${hyperdeckIp}_${slot}`;
+        const stream = this.activeStreams.get(streamKey);
+        
+        if (stream) {
+            try {
+                stream.command.kill('SIGTERM');
+                this.activeStreams.delete(streamKey);
+                console.log(`Stopped stream: ${streamKey}`);
+            } catch (error) {
+                console.error('Error stopping stream:', error);
+            }
+        }
     }
-  }
-
-  isStreaming(hyperdeckIp, slot) {
-    return this.streams.has(`${hyperdeckIp}_${slot}`);
-  }
 }
 
 module.exports = new RtspService();

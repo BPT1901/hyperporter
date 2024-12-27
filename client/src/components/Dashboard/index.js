@@ -24,6 +24,8 @@ const Dashboard = ({ onConnect }) => {
   const [newFileName, setNewFileName] = useState('');
   const [lastTransferredFile, setLastTransferredFile] = useState(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [recordingStatus, setRecordingStatus] = useState(null);
+  const [recordingTimecode, setRecordingTimecode] = useState(null);
 
   // Notification helper
   const showNotification = useCallback((message, type) => {
@@ -180,6 +182,37 @@ const Dashboard = ({ onConnect }) => {
       }
     };
   }, [connectWebSocket]);
+
+  useEffect(() => {
+    if (!ws) return;
+
+    const handleMessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        switch (data.type) {
+            case 'RECORDING_STARTED':
+                setRecordingStatus('recording');
+                setTransferStatus({
+                    message: `Recording to: ${data.filename}`,
+                    type: 'success'
+                });
+                break;
+            case 'RECORDING_STOPPED':
+                setRecordingStatus(null);
+                setTransferStatus({
+                    message: 'Recording stopped',
+                    type: 'success'
+                });
+                break;
+            case 'TRANSPORT_INFO':
+                setRecordingTimecode(data.timecode);
+                break;
+        }
+    };
+
+    ws.addEventListener('message', handleMessage);
+    return () => ws.removeEventListener('message', handleMessage);
+  }, [ws]);
     
 
   // Send message helper with connection check
@@ -403,6 +436,15 @@ const Dashboard = ({ onConnect }) => {
           >
             {isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'}
           </button>
+
+          {isMonitoring && recordingStatus === 'recording' && (
+          <div className="mt-4 p-4 bg-green-100 rounded">
+              <p className="text-green-800">Recording in progress</p>
+              {recordingTimecode && (
+                  <p className="text-sm text-green-600">Timecode: {recordingTimecode}</p>
+              )}
+          </div>
+          )}  
 
           {lastTransferredFile && (
             <div className="mt-6 border-t pt-6">
