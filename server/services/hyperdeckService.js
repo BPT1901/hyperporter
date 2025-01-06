@@ -130,9 +130,21 @@ class HyperdeckService extends EventEmitter {
           return; // Already polling this slot
       }
   
+      let lastCommand = Date.now();
+      const COMMAND_DELAY = 1000; // 1 second between commands
+  
       const interval = setInterval(async () => {
           try {
-              await this.sendCommand(`slot select: ${slot}`);
+              // Check if enough time has passed since last command
+              const now = Date.now();
+              if (now - lastCommand < COMMAND_DELAY) {
+                  return;
+              }
+  
+              // Update last command time
+              lastCommand = now;
+  
+              // Get transport info directly without selecting slot first
               const response = await new Promise((resolve) => {
                   const handler = (data) => {
                       if (data.includes('transport info:')) {
@@ -160,6 +172,34 @@ class HyperdeckService extends EventEmitter {
   
       this.pollingIntervals.set(slot, interval);
     }
+  
+  // modify the stop method to ensure polling is properly cleared
+  stopMonitoring() {
+    this.monitoring = false;
+    if (this.monitoringInterval) {
+        clearInterval(this.monitoringInterval);
+        this.monitoringInterval = null;
+    }
+    
+    // Clear all polling intervals
+    if (this.pollingIntervals) {
+        for (const [slot, interval] of this.pollingIntervals.entries()) {
+            clearInterval(interval);
+            console.log(`Stopped polling for slot ${slot}`);
+        }
+        this.pollingIntervals.clear();
+    }
+  }
+  
+  // Make sure the stop method is properly cleaning up
+  stop() {
+    this.stopMonitoring();
+    this.pollingIntervals?.clear();
+    this.currentCommand = null;
+    this.currentSlot = null;
+    this.buffer = '';
+    this.clipList = [];
+  }
 
   stopTransportPolling(slot) {
       if (this.pollingIntervals?.has(slot)) {
@@ -257,12 +297,26 @@ class HyperdeckService extends EventEmitter {
   }
 
   parseResponse(response) {
-    // Handle error responses
+    // Handle error responses, but don't return early for code 100
+    // as the HyperDeck may still provide valid data afterward
     if (response.startsWith('100 syntax error')) {
-      console.log('Received syntax error from HyperDeck');
-      return;
+      console.log('Warning: Received syntax error from HyperDeck, continuing to process response');
     }
-
+  
+    // Parse transport info
+    if (response.includes('transport info:')) {
+      const statusMatch = response.match(/status: (\w+)/);
+      const timecodeMatch = response.match(/timecode: (\d{2}:\d{2}:\d{2}:\d{2})/);
+      
+      if (statusMatch) {
+        const transportInfo = {
+          status: statusMatch[1],
+          timecode: timecodeMatch ? timecodeMatch[1] : null
+        };
+        this.emit('transportInfo', transportInfo);
+      }
+    }
+  
     // Parse slot info
     if (response.includes('slot id:')) {
       const slotMatch = response.match(/slot id: (\d+)/);
@@ -326,6 +380,41 @@ class HyperdeckService extends EventEmitter {
         this.currentCommand = null;
     }
   }
+
+    async delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Modified sendCommand method
+    async sendCommand(command) {
+      if (!this.connected) {
+        throw new Error('Not connected to Hyperdeck');
+      }
+
+      // Add a small delay between commands
+      await this.delay(100);
+
+      return new Promise((resolve, reject) => {
+        this.currentCommand = command;
+        console.log('Sending command:', command);
+        
+        // Track slot selection
+        const slotMatch = command.match(/slot select: (\d+)/);
+        if (slotMatch) {
+          this.currentSlot = parseInt(slotMatch[1]);
+          console.log('Set current slot to:', this.currentSlot);
+        }
+        
+        this.client.write(command + '\r\n', (error) => {
+          if (error) {
+            this.currentCommand = null;
+            reject(error);
+          } else {
+            resolve();
+          }
+        });
+      });
+    } 
 
   async getClipList(slot) {
     if (!this.connected) {

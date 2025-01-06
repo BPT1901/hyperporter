@@ -22,6 +22,7 @@ class FileWatcher extends EventEmitter {
     this.lastKnownFiles = new Map(); // Track files when monitoring starts
     this.activeStreams = new Map();
     this.hyperdeckService = hyperdeckService;
+    this.recordingStatus = new Map();
     
     // Setup hyperdeck service event listeners
     hyperdeckService.on('slotStatus', (status) => {
@@ -91,47 +92,115 @@ class FileWatcher extends EventEmitter {
       }
     }
 
-    async getNewFiles() {
-      const newFiles = currentFiles.filter(file => {
-        return !this.lastKnownFiles.has(file.name);
-      });
+    async verifyRecording(filePath) {
+      try {
+          const stats = await fs.stat(filePath);
+          
+          if (stats.size === 0) {
+              return {
+                  isValid: false,
+                  details: 'Recording file is empty'
+              };
+          }
 
-      console.log('New files detected:', newFiles);
-      return newFiles;
+          return {
+              isValid: true,
+              details: {
+                  size: stats.size,
+                  created: stats.birthtime,
+                  modified: stats.mtime
+              }
+          };
+      } catch (error) {
+          return {
+              isValid: false,
+              details: `Error verifying recording: ${error.message}`
+          };
+      }
+    }
+
+    async getNewFiles() {
+      try {
+          // Get current list of files from FTP
+          const currentFiles = await this.getFTPFileList();
+          
+          // Compare with last known files
+          const newFiles = currentFiles.filter(file => {
+              return !this.lastKnownFiles.has(file.name);
+          });
+  
+          console.log('New files detected:', newFiles);
+          return newFiles;
+      } catch (error) {
+          console.error('Error getting new files:', error);
+          return [];
+      }
     }
 
     async handleRecordingStart(slot, data) {
       if (data.slot === slot) {
-          const filename = `recording_slot${slot}_${Date.now()}.mp4`;
-          const streamKey = await rtspService.startStream(
-              this.hyperdeckIp,
-              slot,
-              this.destinationPath,
-              filename
-          );
-          
-          this.activeStreams.set(slot, streamKey);
-          this.emit('streamStarted', {
-              slot,
-              streamKey,
-              filename
-          });
-      }
-  }
-
-  async handleRecordingStop(slot, data) {
-      if (data.slot === slot) {
-          const streamKey = this.activeStreams.get(slot);
-          if (streamKey) {
-              await rtspService.stopStream(this.hyperdeckIp, slot);
-              this.activeStreams.delete(slot);
-              this.emit('streamStopped', {
+          try {
+              const filename = `recording_slot${slot}_${Date.now()}.mp4`;
+              console.log(`Starting recording on slot ${slot} to ${filename}`);
+              
+              const streamKey = await rtspService.startStream(
+                  this.hyperdeckIp,
                   slot,
-                  streamKey
+                  this.destinationPath,
+                  filename
+              );
+              
+              this.activeStreams.set(slot, {
+                  streamKey,
+                  filename,
+                  startTime: Date.now()
+              });
+              
+              this.emit('streamStarted', {
+                  slot,
+                  streamKey,
+                  filename
+              });
+          } catch (error) {
+              console.error(`Error starting recording on slot ${slot}:`, error);
+              this.emit('error', {
+                  type: 'RECORDING_START_ERROR',
+                  slot,
+                  message: error.message
               });
           }
       }
-  }
+    }
+
+    async handleRecordingStop(slot, data) {
+      if (data.slot === slot) {
+          try {
+              const streamKey = this.activeStreams.get(slot);
+              if (streamKey) {
+                  console.log(`Stopping recording on slot ${slot}`);
+                  
+                  const result = await rtspService.stopStream(this.hyperdeckIp, slot);
+                  const recordingInfo = await this.verifyRecording(result.outputPath);
+                  
+                  this.activeStreams.delete(slot);
+                  
+                  this.emit('streamStopped', {
+                      slot,
+                      streamKey,
+                      isValid: recordingInfo.isValid,
+                      details: recordingInfo.details
+                  });
+              }
+          } catch (error) {
+              console.error(`Error stopping recording on slot ${slot}:`, error);
+              this.emit('error', {
+                  type: 'RECORDING_STOP_ERROR',
+                  slot,
+                  message: error.message
+              });
+          }
+      }
+    }
 
       async transferViaFTP(fileInfo) {
         const client = new ftp.Client();
@@ -267,29 +336,53 @@ class FileWatcher extends EventEmitter {
 
   async getLastTransferredFile() {
     try {
-      const files = await this.getNewFiles();
-      if (files && files.length > 0) {
-        const lastFile = files[files.length - 1];
-        return {
-          name: lastFile.name,
-          path: path.join(this.destinationPath, lastFile.name)
-        };
-      }
-      return null;
+        const newFiles = await this.getNewFiles();
+        if (newFiles && newFiles.length > 0) {
+            const lastFile = newFiles[newFiles.length - 1];
+            return {
+                name: lastFile.name,
+                path: path.join(this.destinationPath, lastFile.name)
+            };
+        }
+        console.log('No new files found');
+        return null;
     } catch (error) {
-      console.error('Error getting last transferred file:', error);
-      return null;
+        console.error('Error getting last transferred file:', error);
+        return null;
     }
   }
 
   async stop() {
+    console.log('Stopping FileWatcher...');
     this.isMonitoring = false;
     
-    // Stop all active streams
-    for (const [slot, streamKey] of this.activeStreams) {
-      await rtspService.stopStream(this.hyperdeckIp, slot);
+    // Stop transport polling for all active slots
+    for (const [drive, enabled] of Object.entries(this.drives)) {
+        if (enabled) {
+            const slot = drive === 'ssd1' ? 1 : 2;
+            hyperdeckService.stopTransportPolling(slot);
+            console.log(`Stopped polling for slot ${slot}`);
+        }
     }
+
+    // Stop all active streams
+    for (const [slot, streamInfo] of this.activeStreams.entries()) {
+        try {
+            console.log(`Stopping stream for slot ${slot}`);
+            await rtspService.stopStream(this.hyperdeckIp, slot);
+            console.log(`Stopped stream for slot ${slot}`);
+        } catch (error) {
+            console.error(`Error stopping stream for slot ${slot}:`, error);
+        }
+    }
+
     this.activeStreams.clear();
+    console.log('FileWatcher stopped');
+
+    // Emit stopped event
+    this.emit('monitoringStopped', {
+        message: 'Monitoring stopped successfully'
+    });
   }
 }
 

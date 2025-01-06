@@ -116,19 +116,29 @@ const Dashboard = ({ onConnect }) => {
             showNotification('Monitoring started', 'success');
             break;
     
-          case 'MONITORING_STOPPED':
-            Promise.resolve().then(() => {
+            case 'MONITORING_STOPPED':
+              // Immediately update monitoring status
               setIsMonitoring(false);
-              if (data.lastTransferredFile) {
-                setLastTransferredFile(data.lastTransferredFile);
-                const fileName = data.fileName ? data.fileName : data.lastTransferredFile.split('/').pop();
-                setNewFileName(fileName.replace('.mp4', ''));
-                showNotification('Monitoring stopped - You can now rename the last transferred file', 'info');
+              
+              // Clear recording status and timecode
+              setRecordingStatus(null);
+              setRecordingTimecode(null);
+              
+              // Show appropriate notification based on response
+              if (data.error) {
+                  showNotification(`Monitoring stopped with error: ${data.error}`, 'error');
+              } else if (data.lastTransferredFile) {
+                  setLastTransferredFile(data.lastTransferredFile);
+                  const fileName = data.fileName ? data.fileName : data.lastTransferredFile.split('/').pop();
+                  setNewFileName(fileName.replace('.mp4', ''));
+                  showNotification('Monitoring stopped - You can now rename the last transferred file', 'info');
               } else {
-                showNotification('Monitoring stopped', 'info');
+                  showNotification('Monitoring stopped', 'info');
               }
-            });
-            break;
+              
+              // Clear transfer status
+              setTransferStatus(null);
+              break;
     
           case 'FILE_RENAMED':
             showNotification('File renamed successfully', 'success');
@@ -303,12 +313,19 @@ const Dashboard = ({ onConnect }) => {
 
   const stopWatching = useCallback(() => {
     try {
+      // Show immediate feedback that we're processing the stop request
+      showNotification('Stopping monitoring...', 'info');
+      setTransferStatus({ message: 'Stopping monitoring...', type: 'info' });
+      
+      // Send stop monitoring command
       sendMessage({ type: 'STOP_MONITORING' });
-      setIsMonitoring(false);
-      setTransferStatus({ message: 'Monitoring stopped', type: 'info' });
+      
+      // Don't set isMonitoring to false here - wait for server confirmation
     } catch (error) {
       console.error('Error stopping monitoring:', error);
-      showNotification('Failed to stop monitoring', 'error');
+      showNotification('Failed to stop monitoring: ' + error.message, 'error');
+      // Reset monitoring state in case of error
+      setIsMonitoring(false);
     }
   }, [sendMessage, showNotification]);
 
@@ -436,6 +453,18 @@ const Dashboard = ({ onConnect }) => {
           >
             {isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'}
           </button>
+          
+          {/* Add status indicator */}
+          {transferStatus && (
+            <div className={`mt-4 p-4 rounded ${
+              transferStatus.type === 'error' ? 'bg-red-100 text-red-800' : 
+              transferStatus.type === 'success' ? 'bg-green-100 text-green-800' : 
+              'bg-blue-100 text-blue-800'
+            }`}>
+              <p>{transferStatus.message}</p>
+              {recordingTimecode && <p className="text-sm mt-1">Timecode: {recordingTimecode}</p>}
+            </div>
+          )}
 
           {isMonitoring && recordingStatus === 'recording' && (
           <div className="mt-4 p-4 bg-green-100 rounded">

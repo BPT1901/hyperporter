@@ -215,42 +215,51 @@ wss.on('connection', (ws, req) => {
 
         case 'STOP_MONITORING':
           try {
-            const fileWatcher = activeWatchers.get(ws);
-            if (fileWatcher) {
-              // First message about initiating transfer
-              ws.send(JSON.stringify({
-                type: 'TRANSFER_STATUS',
-                message: 'Initiating final transfer check...'
-              }));
-              
-              try {
-                // Get the last transferred file information before stopping
-                const lastFile = await fileWatcher.getLastTransferredFile();
-                
-                await fileWatcher.stop();
-                
-                // Send the monitoring stopped message with the file information
-                ws.send(JSON.stringify({
-                  type: 'MONITORING_STOPPED',
-                  message: 'Monitoring stopped and final files transferred',
-                  lastTransferredFile: lastFile ? lastFile.path : null,
-                  fileName: lastFile ? lastFile.name : null
-                }));
-              } catch (error) {
-                ws.send(JSON.stringify({
-                  type: 'ERROR',
-                  message: `Final transfer failed: ${error.message}`
-                }));
+              const fileWatcher = activeWatchers.get(ws);
+              if (fileWatcher) {
+                  // First message about initiating transfer
+                  ws.send(JSON.stringify({
+                      type: 'TRANSFER_STATUS',
+                      message: 'Initiating final transfer check...'
+                  }));
+                  
+                  try {
+                      // Get the last transferred file information before stopping
+                      const lastFile = await fileWatcher.getLastTransferredFile();
+                      
+                      await fileWatcher.stop();
+                      
+                      // Send the monitoring stopped message
+                      ws.send(JSON.stringify({
+                          type: 'MONITORING_STOPPED',
+                          message: 'Monitoring stopped successfully',
+                          lastTransferredFile: lastFile ? lastFile.path : null,
+                          fileName: lastFile ? lastFile.name : null
+                      }));
+                      
+                      console.log('Monitoring stopped successfully');
+                  } catch (error) {
+                      console.error('Error during stop monitoring:', error);
+                      ws.send(JSON.stringify({
+                          type: 'MONITORING_STOPPED',
+                          message: 'Monitoring stopped with errors',
+                          error: error.message
+                      }));
+                  }
+                  
+                  activeWatchers.delete(ws);
+              } else {
+                  ws.send(JSON.stringify({
+                      type: 'MONITORING_STOPPED',
+                      message: 'No active monitoring session found'
+                  }));
               }
-              
-              activeWatchers.delete(ws);
-            }
           } catch (error) {
-            console.error('Error stopping monitoring:', error);
-            ws.send(JSON.stringify({
-              type: 'ERROR',
-              message: `Failed to stop monitoring: ${error.message}`
-            }));
+              console.error('Error stopping monitoring:', error);
+              ws.send(JSON.stringify({
+                  type: 'ERROR',
+                  message: `Failed to stop monitoring: ${error.message}`
+              }));
           }
           break;
 
