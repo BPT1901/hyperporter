@@ -263,39 +263,39 @@ wss.on('connection', (ws, req) => {
           }
           break;
 
-          case 'TEST_RTSP':
-            try {
-                console.log('Testing RTSP commands...');
-                await hyperdeckService.startRtspStream(1);
-                const status = await hyperdeckService.getStreamStatus();
-                console.log('Stream status after start:', status);
+          // case 'TEST_RTSP':
+          //   try {
+          //       console.log('Testing RTSP commands...');
+          //       await hyperdeckService.startRtspStream(1);
+          //       const status = await hyperdeckService.getStreamStatus();
+          //       console.log('Stream status after start:', status);
                 
-                ws.send(JSON.stringify({
-                    type: 'RTSP_TEST_STATUS',
-                    message: 'RTSP stream started',
-                    status: status
-                }));
+          //       ws.send(JSON.stringify({
+          //           type: 'RTSP_TEST_STATUS',
+          //           message: 'RTSP stream started',
+          //           status: status
+          //       }));
 
-                // Wait 5 seconds then stop
-                setTimeout(async () => {
-                    await hyperdeckService.stopRtspStream();
-                    const finalStatus = await hyperdeckService.getStreamStatus();
-                    console.log('Stream status after stop:', finalStatus);
+          //       // Wait 5 seconds then stop
+          //       setTimeout(async () => {
+          //           await hyperdeckService.stopRtspStream();
+          //           const finalStatus = await hyperdeckService.getStreamStatus();
+          //           console.log('Stream status after stop:', finalStatus);
                     
-                    ws.send(JSON.stringify({
-                        type: 'RTSP_TEST_STATUS',
-                        message: 'RTSP stream stopped',
-                        status: finalStatus
-                    }));
-                }, 5000);
-            } catch (error) {
-                console.error('RTSP test failed:', error);
-                ws.send(JSON.stringify({
-                    type: 'ERROR',
-                    message: `RTSP test failed: ${error.message}`
-                }));
-            }
-          break;
+          //           ws.send(JSON.stringify({
+          //               type: 'RTSP_TEST_STATUS',
+          //               message: 'RTSP stream stopped',
+          //               status: finalStatus
+          //           }));
+          //       }, 5000);
+          //   } catch (error) {
+          //       console.error('RTSP test failed:', error);
+          //       ws.send(JSON.stringify({
+          //           type: 'ERROR',
+          //           message: `RTSP test failed: ${error.message}`
+          //       }));
+          //   }
+          // break;
 
           case 'SAVE_RECORDING':
           try {

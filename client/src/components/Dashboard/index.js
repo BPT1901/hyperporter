@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import FileList from '../FileList';
-import { AlertCircle, Check, HardDrive, Save } from 'lucide-react';
+import { AlertCircle, Check, HardDrive, Save, Loader } from 'lucide-react';
 
 const Notification = ({ message, type }) => (
   <div className={`notification ${type}`}>
@@ -9,6 +9,10 @@ const Notification = ({ message, type }) => (
       <span className="ml-2">{message}</span>
     </div>
   </div>
+);
+
+const LoadingSpinner = () => (
+  <Loader className="animate-spin h-4 w-4 mr-2" />
 );
 
 const Dashboard = ({ onConnect }) => {
@@ -26,6 +30,7 @@ const Dashboard = ({ onConnect }) => {
   const [wsConnected, setWsConnected] = useState(false);
   const [recordingStatus, setRecordingStatus] = useState(null);
   const [recordingTimecode, setRecordingTimecode] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Notification helper
   const showNotification = useCallback((message, type) => {
@@ -80,6 +85,7 @@ const Dashboard = ({ onConnect }) => {
         switch (data.type) {
           case 'CONNECTED':
           case 'CONNECT_HYPERDECK_RESPONSE':
+            setIsLoading(false);
             if (data.success || data.message === 'Successfully connected to HyperDeck') {
               // Use the IP address from the response data
               const connectedIp = data.ipAddress;
@@ -103,20 +109,22 @@ const Dashboard = ({ onConnect }) => {
             }
             break;
           
-          case 'RTSP_TEST_STATUS':
-              console.log('RTSP Test Status:', data.message, data.status);
-              setTransferStatus({
-                  message: data.message,
-                  type: 'success'
-              });
-          break;
+          // case 'RTSP_TEST_STATUS':
+          //     console.log('RTSP Test Status:', data.message, data.status);
+          //     setTransferStatus({
+          //         message: data.message,
+          //         type: 'success'
+          //     });
+          // break;
     
           case 'MONITORING_STARTED':
+            setIsLoading(false);
             setIsMonitoring(true);
             showNotification('Monitoring started', 'success');
             break;
     
             case 'MONITORING_STOPPED':
+              setIsLoading(false);
               // Immediately update monitoring status
               setIsMonitoring(false);
               
@@ -152,6 +160,7 @@ const Dashboard = ({ onConnect }) => {
             break;
 
             case 'RECORDING_SAVED':
+              setIsLoading(false);
               showNotification('Your file has been successfully transferred', 'success');
               setNewFileName('');
               setLastTransferredFile(null);
@@ -247,26 +256,26 @@ const Dashboard = ({ onConnect }) => {
         showNotification('Please enter an IP address', 'error');
         return;
       }
-    
-      console.log('Attempting to connect to HyperDeck at:', ipAddress);
-      
+  
+      setIsLoading(true);
       try {
         if (!ws || ws.readyState !== WebSocket.OPEN) {
           showNotification('WebSocket not connected', 'error');
+          setIsLoading(false);
           return;
         }
-    
-        // Send connection request through WebSocket
+  
         ws.send(JSON.stringify({
           type: 'CONNECT_HYPERDECK',
           ipAddress: ipAddress
         }));
-    
       } catch (error) {
         console.error('Error connecting to HyperDeck:', error);
         showNotification('Failed to connect to HyperDeck', 'error');
+        setIsLoading(false);
       }
     }, [ipAddress, ws, showNotification]);
+  
 
   // File system handlers
 
@@ -284,48 +293,41 @@ const Dashboard = ({ onConnect }) => {
   }, [showNotification]);
 
   const startWatching = useCallback(async () => {
-  if (!settings.destinationPath) {
-    showNotification('Please select a destination folder first', 'error');
-    return;
-  }
+    if (!settings.destinationPath) {
+      showNotification('Please select a destination folder first', 'error');
+      return;
+    }
 
-  if (!ws || !wsConnected) {
-    showNotification('Not connected to server', 'error');
-    return;
-  }
+    if (!ws || !wsConnected) {
+      showNotification('Not connected to server', 'error');
+      return;
+    }
 
-  try {
-    console.log('Starting monitoring with settings:', {
-      drives: selectedDrives,
-      destinationPath: settings.destinationPath
-    });
-
-    ws.send(JSON.stringify({
-      type: 'START_MONITORING',
-      drives: selectedDrives,
-      destinationPath: settings.destinationPath
-    }));
-  } catch (error) {
-    console.error('Error starting monitoring:', error);
-    showNotification('Failed to start monitoring: ' + error.message, 'error');
-  }
-}, [settings.destinationPath, selectedDrives, ws, wsConnected, showNotification]);
+    setIsLoading(true);
+    try {
+      ws.send(JSON.stringify({
+        type: 'START_MONITORING',
+        drives: selectedDrives,
+        destinationPath: settings.destinationPath
+      }));
+    } catch (error) {
+      console.error('Error starting monitoring:', error);
+      showNotification('Failed to start monitoring: ' + error.message, 'error');
+      setIsLoading(false);
+    }
+  }, [settings.destinationPath, selectedDrives, ws, wsConnected, showNotification]);
 
   const stopWatching = useCallback(() => {
+    setIsLoading(true);
     try {
-      // Show immediate feedback that we're processing the stop request
       showNotification('Stopping monitoring...', 'info');
       setTransferStatus({ message: 'Stopping monitoring...', type: 'info' });
-      
-      // Send stop monitoring command
       sendMessage({ type: 'STOP_MONITORING' });
-      
-      // Don't set isMonitoring to false here - wait for server confirmation
     } catch (error) {
       console.error('Error stopping monitoring:', error);
       showNotification('Failed to stop monitoring: ' + error.message, 'error');
-      // Reset monitoring state in case of error
       setIsMonitoring(false);
+      setIsLoading(false);
     }
   }, [sendMessage, showNotification]);
 
@@ -356,7 +358,7 @@ const Dashboard = ({ onConnect }) => {
   }, [lastTransferredFile, newFileName, ws, settings.destinationPath, selectedDrives, showNotification]);
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${isLoading ? 'cursor-wait' : ''}`}>
       {notification && (
         <div className="notification-container">
           <Notification message={notification.message} type={notification.type} />
@@ -377,17 +379,7 @@ const Dashboard = ({ onConnect }) => {
             <p className={`status-text ${wsConnected ? 'text-success' : 'text-error'}`}>
               {wsConnected ? 'Connected' : 'Disconnected'}
             </p>
-            <button
-              className="btn"
-              onClick={() => {
-                  if (ws && isConnected) {
-                      ws.send(JSON.stringify({ type: 'TEST_RTSP' }));
-                  }
-              }}
-              disabled={!isConnected}
-          >
-              Test RTSP
-          </button>
+            
           </div>
 
           <div className="input-group">
@@ -397,16 +389,23 @@ const Dashboard = ({ onConnect }) => {
               value={ipAddress}
               onChange={(e) => setIpAddress(e.target.value)}
               placeholder="HyperDeck IP Address"
-              disabled={isConnected}
+              disabled={isConnected || isLoading}
             />
             <button
-              className="btn"
+              className={`btn flex items-center justify-center ${isLoading ? 'opacity-75' : ''}`}
               onClick={connectToHyperdeck}
-              disabled={isConnected || !ipAddress}
+              disabled={isConnected || !ipAddress || isLoading}
             >
-              Connect to HyperDeck
-            </button>
-          </div>
+              {isLoading ? (
+            <>
+              <LoadingSpinner />
+              Connecting...
+            </>
+          ) : (
+            'Connect to HyperDeck'
+          )}
+        </button>
+      </div>
 
           <div className="mb-6">
             <h2>Drive Selection</h2>
@@ -447,12 +446,20 @@ const Dashboard = ({ onConnect }) => {
           </div>
 
           <button
-            className={`btn full-width ${isMonitoring ? 'monitoring' : ''}`}
-            onClick={isMonitoring ? stopWatching : startWatching}
-            disabled={!isConnected || !settings.destinationPath}
+          className={`btn full-width ${isMonitoring ? 'monitoring' : ''} ${isLoading ? 'opacity-75' : ''}`}
+          onClick={isMonitoring ? stopWatching : startWatching}
+          disabled={!isConnected || !settings.destinationPath || isLoading}
           >
-            {isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'}
+            {isLoading ? (
+          <span className="flex items-center justify-center">
+            <LoadingSpinner />
+            {isMonitoring ? 'Stopping...' : 'Starting...'}
+          </span>
+          ) : (
+            isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'
+          )}
           </button>
+          
           
           {/* Add status indicator */}
           {transferStatus && (
