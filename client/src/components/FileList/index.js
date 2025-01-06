@@ -10,6 +10,7 @@ const FileList = ({ ws, isConnected }) => {
   const [error, setError] = useState(null);
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferProgress, setTransferProgress] = useState(0);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
 
   useEffect(() => {
     if (!ws || !isConnected) {
@@ -31,8 +32,16 @@ const FileList = ({ ws, isConnected }) => {
               console.log('Setting files:', data.clips);
               setFiles(data.clips);
               setError(null);
+              setIsLoadingFiles(false); // Clear loading state when files received
             } else {
               console.error('Clips data is not an array:', data.clips);
+              setIsLoadingFiles(false);
+            }
+            break;
+          case 'CONNECT_HYPERDECK_RESPONSE':
+            if (data.success) {
+              setIsLoadingFiles(true); // Set loading when connection successful
+              requestFileList();
             }
             break;
           case 'ERROR':
@@ -58,17 +67,20 @@ const FileList = ({ ws, isConnected }) => {
       } catch (error) {
         console.error('Error processing message:', error);
         setError('Error processing server message');
+        setIsLoadingFiles(false);
       }
     };
 
     const requestFileList = () => {
       try {
         console.log('Attempting to send GET_FILE_LIST request');
+        setIsLoadingFiles(true); // Set loading when requesting files
         ws.send(JSON.stringify({ type: 'GET_FILE_LIST' }));
         console.log('GET_FILE_LIST request sent successfully');
       } catch (error) {
         console.error('Error sending GET_FILE_LIST request:', error);
         setError('Failed to request file list');
+        setIsLoadingFiles(false);
       }
     };
 
@@ -133,6 +145,10 @@ const FileList = ({ ws, isConnected }) => {
       <div className="recordings-list" style={{ width: '493.03px', height: '300px', overflowY: 'auto' }}>
         {error ? (
           <p className="text-red-500">{error}</p>
+        ) : isLoadingFiles ? (
+          <div className="flex items-center justify-center p-4">
+            <span className="text-gray-500">Loading recordings...</span>
+          </div>
         ) : files.length === 0 ? (
           <p className="text-gray-500">No recordings found</p>
         ) : (

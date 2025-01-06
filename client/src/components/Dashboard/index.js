@@ -85,9 +85,7 @@ const Dashboard = ({ onConnect }) => {
         switch (data.type) {
           case 'CONNECTED':
           case 'CONNECT_HYPERDECK_RESPONSE':
-            setIsLoading(false);
             if (data.success || data.message === 'Successfully connected to HyperDeck') {
-              // Use the IP address from the response data
               const connectedIp = data.ipAddress;
               console.log('HyperDeck Connection Success:', {
                 responseIp: connectedIp,
@@ -96,17 +94,31 @@ const Dashboard = ({ onConnect }) => {
               });
               
               setIsConnected(true);
+              setIsLoading(false);
               showNotification('Successfully connected to HyperDeck', 'success');
+              // Add new notification for file fetching
+              setTimeout(() => {
+                showNotification(
+                  <div className="flex items-center">
+                    <Loader className="animate-spin mr-2 h-4 w-4" />
+                    Getting existing recordings...
+                  </div>,
+                  'success'
+                );
+              }, 1000);
               
               if (onConnect && connectedIp) {
-                console.log('Calling onConnect with:', connectedIp);
                 onConnect(connectedIp);
-              } else {
-                console.warn('onConnect not available or IP missing');
               }
             } else {
+              setIsLoading(false); // Stop the spinner on error
               showNotification(data.message || 'Connection failed', 'error');
             }
+            break;
+    
+          case 'CLIP_LIST':
+            // Add success notification when files are loaded
+            showNotification('Recordings loaded successfully', 'success');
             break;
           
           // case 'RTSP_TEST_STATUS':
@@ -118,8 +130,8 @@ const Dashboard = ({ onConnect }) => {
           // break;
     
           case 'MONITORING_STARTED':
+            setIsMonitoring(true);  
             setIsLoading(false);
-            setIsMonitoring(true);
             showNotification('Monitoring started', 'success');
             break;
     
@@ -392,19 +404,19 @@ const Dashboard = ({ onConnect }) => {
               disabled={isConnected || isLoading}
             />
             <button
-              className={`btn flex items-center justify-center ${isLoading ? 'opacity-75' : ''}`}
+              className={`btn flex items-center justify-center ${isLoading && !isConnected ? 'opacity-75' : ''}`}
               onClick={connectToHyperdeck}
-              disabled={isConnected || !ipAddress || isLoading}
+              disabled={isConnected || !ipAddress || (isLoading && !isConnected)}
             >
-              {isLoading ? (
-            <>
-              <LoadingSpinner />
-              Connecting...
-            </>
-          ) : (
-            'Connect to HyperDeck'
-          )}
-        </button>
+              {isLoading && !isConnected ? (
+                <>
+                  <LoadingSpinner />
+                  Connecting...
+                </>
+              ) : (
+                'Connect to HyperDeck'
+              )}
+            </button>
       </div>
 
           <div className="mb-6">
@@ -446,18 +458,20 @@ const Dashboard = ({ onConnect }) => {
           </div>
 
           <button
-          className={`btn full-width ${isMonitoring ? 'monitoring' : ''} ${isLoading ? 'opacity-75' : ''}`}
-          onClick={isMonitoring ? stopWatching : startWatching}
-          disabled={!isConnected || !settings.destinationPath || isLoading}
+            className={`btn full-width ${isMonitoring ? 'monitoring' : ''} ${isLoading && !isMonitoring ? 'opacity-75' : ''}`}
+            onClick={isMonitoring ? stopWatching : startWatching}
+            disabled={!isConnected || !settings.destinationPath || (isLoading && !isMonitoring)}
           >
-            {isLoading ? (
-          <span className="flex items-center justify-center">
-            <LoadingSpinner />
-            {isMonitoring ? 'Stopping...' : 'Starting...'}
-          </span>
-          ) : (
-            isMonitoring ? 'Stop Monitoring' : 'Start Monitoring'
-          )}
+            {isLoading && !isMonitoring ? (
+              <span className="flex items-center justify-center">
+                <LoadingSpinner />
+                Starting...
+              </span>
+            ) : isMonitoring ? (
+              'Stop Monitoring'
+            ) : (
+              'Start Monitoring'
+            )}
           </button>
           
           
