@@ -2,20 +2,11 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const hyperdeckService = require('../server/services/hyperdeckService');
 const net = require('net');
+const createMenu = require('./menu');
 
-// Single isDev declaration
+app.name = 'Hyperporter';
+
 const isDev = process.env.NODE_ENV === 'development';
-
-// Set FFmpeg path for packaged app
-// const ffmpegPath = app.isPackaged
-//   ? path.join(process.resourcesPath, 'ffmpeg')
-//   : path.join(__dirname, 'ffmpeg');
-
-// Configure RTSP service with correct paths
-// const rtspService = new RtspService({
-//   ffmpegPath,
-//   resourcePath: app.isPackaged ? process.resourcesPath : __dirname
-// });
 
 function testHyperdeckConnection(ip) {
   return new Promise((resolve, reject) => {
@@ -43,25 +34,45 @@ if (process.platform === 'darwin') {
 }
 
 function createWindow() {
-  console.log('Creating window...');
-  console.log('Development mode:', isDev);
-  
-  const preloadPath = path.join(__dirname, 'preload.js');
-  console.log('Preload script path:', preloadPath);
+  // Determine icon path based on platform and environment
+  let iconPath;
+  if (isDev) {
+    iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
+  } else {
+    // In production, use the bundled resources path
+    iconPath = path.join(process.resourcesPath, 'icon.png');
+  }
 
-  const mainWindow = new BrowserWindow({
-    width: 1200,
+  const mainWindow = new BrowserWindow ({
+    width: 1400,
     height: 800,
+    title: "Hyperporter",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, '..', 'assets', 'icon.png')  // Note the '..' to go up one directory
+    icon: iconPath
   });
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.setTitle('Hyperporter');
+});
   
   ipcMain.handle('select-directory', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select Destination Folder'
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths[0];
+    }
+    return null;
+  });
+
+  ipcMain.handle('menu-select-folder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory', 'createDirectory'],
       title: 'Select Destination Folder'
