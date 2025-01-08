@@ -4,7 +4,11 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const hyperdeckService = require('../server/services/hyperdeckService');
 const net = require('net');
+const createMenu = require('./menu');
 
+app.name = 'Hyperporter';
+
+<<<<<<< HEAD
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -17,6 +21,10 @@ if (!isDev) {
 }
 
 
+=======
+const isDev = process.env.NODE_ENV === 'development';
+
+>>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
 function testHyperdeckConnection(ip) {
   return new Promise((resolve, reject) => {
     const testSocket = new net.Socket();
@@ -43,24 +51,52 @@ function testHyperdeckConnection(ip) {
 // }
 
 function createWindow() {
-  console.log('Creating window...');
-  console.log('Development mode:', isDev);
-  
-  const preloadPath = path.join(__dirname, 'preload.js');
-  console.log('Preload script path:', preloadPath);
+  // Determine icon path based on platform and environment
+  let iconPath;
+  if (isDev) {
+    iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
+  } else {
+    // In production, use the bundled resources path
+    iconPath = path.join(process.resourcesPath, 'icon.png');
+  }
 
+<<<<<<< HEAD
   const mainWindow = new BrowserWindow({
+=======
+  const mainWindow = new BrowserWindow ({
+>>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
     width: 1400,
     height: 800,
+    title: "Hyperporter",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.js')
     },
+<<<<<<< HEAD
+=======
+    icon: iconPath
+>>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
   });
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.setTitle('Hyperporter');
+});
   
   ipcMain.handle('select-directory', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select Destination Folder'
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths[0];
+    }
+    return null;
+  });
+
+  ipcMain.handle('menu-select-folder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory', 'createDirectory'],
       title: 'Select Destination Folder'

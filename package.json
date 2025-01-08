@@ -1,6 +1,10 @@
 {
   "name": "hyperporter",
+<<<<<<< HEAD
   "version": "1.1.2",
+=======
+  "version": "1.1.0",
+>>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
   "description": "HyperDeck recording management web application",
   "main": "./electron/main.js",
   "author": "Ben Turner",
@@ -9,23 +13,15 @@
     "appId": "com.hyperporter.app",
     "productName": "Hyperporter",
     "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
+      "target": ["dmg", "zip"],
       "icon": "assets/icon.icns"
     },
     "win": {
-      "target": [
-        "portable",
-        "zip"
-      ],
+      "target": ["portable", "zip"],
       "icon": "assets/icon.ico"
     },
     "linux": {
-      "target": [
-        "AppImage"
-      ],
+      "target": ["AppImage"],
       "icon": "assets/icon.png"
     },
     "files": [
@@ -36,6 +32,7 @@
       "package.json"
     ],
     "directories": {
+<<<<<<< HEAD
       "buildResources": "assets"
     },
     "extraResources": [
@@ -54,6 +51,22 @@
     "build": "cd client && npm run build && cd ..",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
+=======
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "extraResources": [
+      {
+        "from": "assets/",
+        "to": ".",
+        "filter": ["icon.*"]
+      }
+    ]
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "cd client && npm run build",
+>>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
     "dev": "nodemon server/index.js",
     "electron-dev": "cross-env NODE_ENV=development concurrently \"yarn --cwd client start\" \"wait-on http://localhost:3000 && electron .\"",
     "electron": "electron .",
@@ -68,17 +81,10 @@
     "express": "^4.18.2",
     "fluent-ffmpeg": "^2.1.2",
     "fs-extra": "^11.2.0",
-    "lucide-react": "^0.468.0",
     "node-rtsp-stream": "^0.0.9",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-scripts": "^5.0.1",
-    "tailwindcss": "^3.4.16",
-    "web-vitals": "^4.2.4",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "electron": "^25.3.1",
@@ -86,23 +92,5 @@
     "electron-rebuild": "^3.2.9",
     "nodemon": "^3.0.3",
     "wait-on": "^7.0.1"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
   }
 }
