@@ -38,9 +38,9 @@ function testHyperdeckConnection(ip) {
   });
 }
 
-if (process.platform === 'darwin') {
-  app.dock.setIcon(path.join(__dirname, '..', 'assets', 'icon.png'));
-}
+// if (process.platform === 'darwin') {
+//   app.dock.setIcon(path.join(__dirname, '..', 'assets', 'icon.icns'));
+// }
 
 function createWindow() {
   console.log('Creating window...');
@@ -50,7 +50,7 @@ function createWindow() {
   console.log('Preload script path:', preloadPath);
 
   const mainWindow = new BrowserWindow({
-    width: 1200,
+    width: 1400,
     height: 800,
     webPreferences: {
       nodeIntegration: false,
@@ -58,7 +58,6 @@ function createWindow() {
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, '..', 'assets', 'icon.png')  // Note the '..' to go up one directory
   });
   
   ipcMain.handle('select-directory', async () => {
@@ -77,7 +76,10 @@ function createWindow() {
   
   const startURL = isDev 
     ? 'http://localhost:3000' 
-    : `file://${path.join(__dirname, '../client/build/index.html')}`;
+    : `file://${path.join(__dirname, '..', 'client', 'build', 'index.html')}`;
+
+    console.log('Environment:', isDev ? 'Development' : 'Production');
+    console.log('Loading path:', path.join(__dirname, '..', 'client', 'build', 'index.html'));
   
   console.log('Loading URL:', startURL);
   mainWindow.loadURL(startURL);

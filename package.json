@@ -1,8 +1,8 @@
 {
   "name": "hyperporter",
-  "version": "1.0.0",
+  "version": "1.1.2",
   "description": "HyperDeck recording management web application",
-  "main": "electron/main.js",
+  "main": "./electron/main.js",
   "author": "Ben Turner",
   "license": "ISC",
   "build": {
@@ -29,7 +29,7 @@
       "icon": "assets/icon.png"
     },
     "files": [
-      "build/**/*",
+      "client/build/**/*",
       "node_modules/**/*",
       "electron/**/*",
       "server/**/*",
@@ -37,11 +37,21 @@
     ],
     "directories": {
       "buildResources": "assets"
+    },
+    "extraResources": [
+    {
+      "from": "assets",
+      "to": ".",
+      "filter": ["icon.*"]
     }
+  ],
+    "extraMetadata": {
+    "main": "electron/main.js"
+  }
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "cd client && npm run build && cd ..",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev": "nodemon server/index.js",
