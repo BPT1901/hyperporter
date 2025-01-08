@@ -49,7 +49,11 @@ const Dashboard = ({ onConnect }) => {
         return;
       }
   
-      socket = new WebSocket('ws://localhost:3001/ws');
+      const wsUrl = process.env.NODE_ENV === 'development' 
+      ? 'ws://localhost:3001/ws'
+      : 'ws://127.0.0.1:3001/ws';
+
+      socket = new WebSocket(wsUrl);
   
       socket.onopen = () => {
         console.log('WebSocket connected successfully');

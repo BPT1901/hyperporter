@@ -1,21 +1,21 @@
+//electron/main.js
+
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const hyperdeckService = require('../server/services/hyperdeckService');
 const net = require('net');
 
-// Single isDev declaration
+
 const isDev = process.env.NODE_ENV === 'development';
 
-// Set FFmpeg path for packaged app
-// const ffmpegPath = app.isPackaged
-//   ? path.join(process.resourcesPath, 'ffmpeg')
-//   : path.join(__dirname, 'ffmpeg');
+const serverPath = path.join(__dirname, '..', 'server', 'index.js');
+let serverProcess = null;
 
-// Configure RTSP service with correct paths
-// const rtspService = new RtspService({
-//   ffmpegPath,
-//   resourcePath: app.isPackaged ? process.resourcesPath : __dirname
-// });
+if (!isDev) {
+  // Start the server in production
+  serverProcess = require('child_process').fork(serverPath);
+}
+
 
 function testHyperdeckConnection(ip) {
   return new Promise((resolve, reject) => {
@@ -80,8 +80,9 @@ function createWindow() {
 
     console.log('Environment:', isDev ? 'Development' : 'Production');
     console.log('Loading path:', path.join(__dirname, '..', 'client', 'build', 'index.html'));
+    console.log('App path:', app.getAppPath());
+    console.log('Loading URL:', startURL);
   
-  console.log('Loading URL:', startURL);
   mainWindow.loadURL(startURL);
 
   // Open DevTools in development mode
@@ -188,6 +189,9 @@ function createWindow() {
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
+  if (serverProcess) {
+    serverProcess.kill();
+  }
   if (process.platform !== 'darwin') {
     hyperdeckService.disconnect();
     app.quit();

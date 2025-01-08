@@ -96,21 +96,17 @@ const FileList = ({ ws, isConnected }) => {
     };
 }, [ws, isConnected]);
 
-  const handleBrowse = async () => {
-    try {
-      const directoryHandle = await window.showDirectoryPicker({
-        mode: 'readwrite'
-      });
-      
-      const fullPath = `/Users/benturner/Desktop/${directoryHandle.name}`;
-      setDestinationPath(fullPath);
-      
-      window.selectedDirectory = directoryHandle;
-    } catch (error) {
-      console.error('Error selecting folder:', error);
-      setError('Error selecting folder');
+const handleBrowse = async () => {
+  try {
+    const selectedPath = await window.electron.dialog.selectDirectory();
+    if (selectedPath) {
+      setDestinationPath(selectedPath);
     }
-  };
+  } catch (error) {
+    console.error('Error selecting folder:', error);
+    setError('Error selecting folder');
+  }
+};
 
   const handleFileNameChange = (e) => {
     let fileName = e.target.value;
