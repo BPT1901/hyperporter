@@ -1,10 +1,6 @@
 {
   "name": "hyperporter",
-<<<<<<< HEAD
   "version": "1.1.2",
-=======
-  "version": "1.1.0",
->>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
   "description": "HyperDeck recording management web application",
   "main": "./electron/main.js",
   "author": "Ben Turner",
@@ -32,7 +28,6 @@
       "package.json"
     ],
     "directories": {
-<<<<<<< HEAD
       "buildResources": "assets"
     },
     "extraResources": [
@@ -51,22 +46,6 @@
     "build": "cd client && npm run build && cd ..",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-=======
-      "buildResources": "assets",
-      "output": "dist"
-    },
-    "extraResources": [
-      {
-        "from": "assets/",
-        "to": ".",
-        "filter": ["icon.*"]
-      }
-    ]
-  },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "cd client && npm run build",
->>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
     "dev": "nodemon server/index.js",
     "electron-dev": "cross-env NODE_ENV=development concurrently \"yarn --cwd client start\" \"wait-on http://localhost:3000 && electron .\"",
     "electron": "electron .",

@@ -8,7 +8,6 @@ const createMenu = require('./menu');
 
 app.name = 'Hyperporter';
 
-<<<<<<< HEAD
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -21,10 +20,6 @@ if (!isDev) {
 }
 
 
-=======
-const isDev = process.env.NODE_ENV === 'development';
-
->>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
 function testHyperdeckConnection(ip) {
   return new Promise((resolve, reject) => {
     const testSocket = new net.Socket();
@@ -60,11 +55,7 @@ function createWindow() {
     iconPath = path.join(process.resourcesPath, 'icon.png');
   }
 
-<<<<<<< HEAD
   const mainWindow = new BrowserWindow({
-=======
-  const mainWindow = new BrowserWindow ({
->>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
     width: 1400,
     height: 800,
     title: "Hyperporter",
@@ -74,10 +65,6 @@ function createWindow() {
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.js')
     },
-<<<<<<< HEAD
-=======
-    icon: iconPath
->>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
   });
 
   mainWindow.on('ready-to-show', () => {
