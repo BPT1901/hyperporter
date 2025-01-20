@@ -18,20 +18,26 @@ class RtspService {
             console.log('Stream already exists for this slot');
             return streamKey;
         }
-
+    
         const rtspUrl = `rtsp://${hyperdeckIp}:8554/slot${slot}`;
-        const outputPath = path.join(destinationPath, filename);
-
+        
+        // Normalize the path for Windows
+        const normalizedPath = destinationPath.replace(/\\/g, '/');
+        const outputPath = path.join(normalizedPath, filename);
+    
+        // Ensure directory exists
+        await fs.ensureDir(normalizedPath);
+    
         console.log(`Starting RTSP stream: ${rtspUrl} to ${outputPath}`);
-
+    
         try {
             const command = ffmpeg(rtspUrl)
                 .outputOptions([
-                    '-c:v copy',     // Copy video codec (no re-encoding)
-                    '-c:a copy',     // Copy audio codec
-                    '-reset_timestamps 1', // Reset timestamps
-                    '-fflags +genpts', // Generate presentation timestamps
-                    '-rtsp_transport tcp' // Use TCP for more reliable streaming
+                    '-c:v copy',
+                    '-c:a copy',
+                    '-reset_timestamps 1',
+                    '-fflags +genpts',
+                    '-rtsp_transport tcp'
                 ])
                 .on('start', () => {
                     console.log('Started RTSP stream recording');
@@ -40,41 +46,34 @@ class RtspService {
                 .on('progress', (progress) => {
                     console.log('Recording progress:', progress);
                 })
-                .on('error', async (err) => {
+                .on('error', async (err, stdout, stderr) => {
                     console.error('RTSP recording error:', err);
+                    console.error('FFmpeg output:', stdout);
+                    console.error('FFmpeg stderr:', stderr);
                     
-                    // Attempt to recover from errors
                     const attempts = this.streamRetryAttempts.get(streamKey) || 0;
                     if (attempts < this.MAX_RETRY_ATTEMPTS) {
                         console.log(`Attempting to recover stream (attempt ${attempts + 1}/${this.MAX_RETRY_ATTEMPTS})`);
                         this.streamRetryAttempts.set(streamKey, attempts + 1);
                         
-                        // Restart the stream
                         await this.stopStream(hyperdeckIp, slot);
                         await this.startStream(hyperdeckIp, slot, destinationPath, filename);
                     }
                 })
                 .on('end', () => {
                     console.log('RTSP recording completed');
-                    // Verify file was created successfully
-                    if (fs.existsSync(outputPath)) {
-                        const stats = fs.statSync(outputPath);
-                        if (stats.size === 0) {
-                            console.error('Recording completed but file is empty');
-                        } else {
-                            console.log(`Recording completed successfully, file size: ${stats.size} bytes`);
-                        }
-                    }
+                    this.verifyRecording(outputPath);
                 });
-
+    
+            // Use save with the normalized path
             command.save(outputPath);
-
+    
             this.activeStreams.set(streamKey, {
                 command,
                 outputPath,
                 startTime: Date.now()
             });
-
+    
             return streamKey;
         } catch (error) {
             console.error('Failed to start RTSP stream:', error);
@@ -110,6 +109,26 @@ class RtspService {
                 console.error('Error stopping stream:', error);
                 throw error;
             }
+        }
+    }
+
+    async verifyRecording(outputPath) {
+        try {
+            if (await fs.pathExists(outputPath)) {
+                const stats = await fs.stat(outputPath);
+                if (stats.size === 0) {
+                    console.error('Recording completed but file is empty');
+                    throw new Error('Recording file is empty');
+                } else {
+                    console.log(`Recording completed successfully, file size: ${stats.size} bytes`);
+                }
+            } else {
+                console.error('Recording file not found after completion');
+                throw new Error('Recording file not found');
+            }
+        } catch (error) {
+            console.error('Error verifying recording:', error);
+            throw error;
         }
     }
 

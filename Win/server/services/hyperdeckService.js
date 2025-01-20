@@ -109,6 +109,44 @@ class HyperdeckService extends EventEmitter {
             throw error;
         }
     }
+
+    async getCurrentClip(slot) {
+  if (!this.connected) {
+    throw new Error('Not connected to HyperDeck');
+  }
+
+  try {
+    // First select the slot
+    await this.sendCommand(`slot select: ${slot}`);
+    
+    // Then get the current clip info
+    return new Promise((resolve, reject) => {
+      const handleResponse = (response) => {
+        const clipMatch = response.match(/\d+: (.+\.mp4)/);
+        if (clipMatch) {
+          this.removeListener('response', handleResponse);
+          resolve({
+            name: clipMatch[1],
+            slot: slot
+          });
+        }
+      };
+
+      this.on('response', handleResponse);
+      
+      // Set timeout
+      setTimeout(() => {
+        this.removeListener('response', handleResponse);
+        reject(new Error('Timeout getting current clip info'));
+      }, 5000);
+
+      this.sendCommand('clips get');
+    });
+  } catch (error) {
+    console.error('Error getting current clip:', error);
+    throw error;
+  }
+}
     
     async getStreamStatus() {
         try {
@@ -171,6 +209,44 @@ class HyperdeckService extends EventEmitter {
       }, 1000); // Poll every second
   
       this.pollingIntervals.set(slot, interval);
+    }
+
+    async getCurrentClip(slot) {
+      if (!this.connected) {
+        throw new Error('Not connected to HyperDeck');
+      }
+    
+      try {
+        // First select the slot
+        await this.sendCommand(`slot select: ${slot}`);
+        
+        // Then get the current clip info
+        return new Promise((resolve, reject) => {
+          const handleResponse = (response) => {
+            const clipMatch = response.match(/\d+: (.+\.mp4)/);
+            if (clipMatch) {
+              this.removeListener('response', handleResponse);
+              resolve({
+                name: clipMatch[1],
+                slot: slot
+              });
+            }
+          };
+    
+          this.on('response', handleResponse);
+          
+          // Set timeout
+          setTimeout(() => {
+            this.removeListener('response', handleResponse);
+            reject(new Error('Timeout getting current clip info'));
+          }, 5000);
+    
+          this.sendCommand('clips get');
+        });
+      } catch (error) {
+        console.error('Error getting current clip:', error);
+        throw error;
+      }
     }
   
   // modify the stop method to ensure polling is properly cleared

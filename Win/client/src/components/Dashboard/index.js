@@ -313,25 +313,33 @@ const Dashboard = ({ onConnect }) => {
       showNotification('Please select a destination folder first', 'error');
       return;
     }
-
+  
     if (!ws || !wsConnected) {
       showNotification('Not connected to server', 'error');
       return;
     }
-
+  
     setIsLoading(true);
     try {
+      // Normalize the destination path
+      const normalizedPath = settings.destinationPath.replace(/\\/g, '/');
+      
+      // Add default filename if none exists
+      const defaultFileName = newFileName || 'recording';
+      
       ws.send(JSON.stringify({
         type: 'START_MONITORING',
         drives: selectedDrives,
-        destinationPath: settings.destinationPath
+        destinationPath: normalizedPath,
+        fileName: defaultFileName,
+        rtspEnabled: true // Enable RTSP streaming
       }));
     } catch (error) {
       console.error('Error starting monitoring:', error);
       showNotification('Failed to start monitoring: ' + error.message, 'error');
       setIsLoading(false);
     }
-  }, [settings.destinationPath, selectedDrives, ws, wsConnected, showNotification]);
+  }, [settings.destinationPath, selectedDrives, ws, wsConnected, newFileName, showNotification]);
 
   const stopWatching = useCallback(() => {
     setIsLoading(true);
@@ -356,20 +364,22 @@ const Dashboard = ({ onConnect }) => {
     try {
       const fullFileName = newFileName.endsWith('.mp4') ? newFileName : `${newFileName}.mp4`;
       
-      // Use exact same structure as FileList component
+      // Normalize the path for Windows
+      const normalizedPath = settings.destinationPath.replace(/\\/g, '/');
+      
       ws.send(JSON.stringify({
         type: 'SAVE_RECORDING',
         file: {
           name: lastTransferredFile.split('/').pop(),
-          slot: selectedDrives.ssd1 ? 1 : 2,  // Determine which slot was being monitored
+          slot: selectedDrives.ssd1 ? 1 : 2,
           path: lastTransferredFile
         },
-        destinationPath: settings.destinationPath,
+        destinationPath: normalizedPath,
         newFileName: fullFileName
       }));
     } catch (error) {
       console.error('Error saving file:', error);
-      showNotification('Failed to save file', 'error');
+      showNotification('Failed to save file: ' + error.message, 'error');
     }
   }, [lastTransferredFile, newFileName, ws, settings.destinationPath, selectedDrives, showNotification]);
 

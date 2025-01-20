@@ -11,19 +11,43 @@ const rtspService = require('./rtspService');
 class FileWatcher extends EventEmitter {
   constructor(options) {
     super();
+    // Validate required options
+    if (!options) {
+      throw new Error('Configuration object is required');
+    }
     if (!options.hyperdeckIp) {
       throw new Error('HyperDeck IP address is required');
     }
+    if (!options.destinationPath) {
+      throw new Error('Destination path is required');
+    }
+    if (!options.drives) {
+      throw new Error('Drives configuration is required');
+    }
+  
+    // Assign all properties
     this.drives = options.drives;
     this.destinationPath = options.destinationPath;
     this.hyperdeckIp = options.hyperdeckIp;
+    this.rtspEnabled = options.rtspEnabled ?? true;
+    this.defaultFileName = options.defaultFileName || `recording_${Date.now()}`;
     this.watchers = new Map();
     this.isMonitoring = false;
-    this.lastKnownFiles = new Map(); // Track files when monitoring starts
+    this.lastKnownFiles = new Map();
     this.activeStreams = new Map();
     this.hyperdeckService = hyperdeckService;
     this.recordingStatus = new Map();
-    
+    this.lastTransferredFile = null;
+  
+    // Log configuration for debugging
+    console.log('FileWatcher initialized with config:', {
+      drives: this.drives,
+      destinationPath: this.destinationPath,
+      hyperdeckIp: this.hyperdeckIp,
+      rtspEnabled: this.rtspEnabled,
+      defaultFileName: this.defaultFileName
+    });
+  
     // Setup hyperdeck service event listeners
     hyperdeckService.on('slotStatus', (status) => {
       if (status.status === 'mounted') {
@@ -34,63 +58,108 @@ class FileWatcher extends EventEmitter {
 
 
     
-    async startMonitoring() {
-      try {
-        if (!fs.existsSync(this.destinationPath)) {
-          throw new Error('Destination path does not exist');
-        }
-
-        // Store initial file list
-        const initialFiles = await this.getFTPFileList();
-        this.lastKnownFiles.clear();
-        initialFiles.forEach(file => {
-          this.lastKnownFiles.set(file.name, file);
-        });
-
-        console.log('Initial files:', Array.from(this.lastKnownFiles.keys()));
-
-        this.isMonitoring = true;
-
-        // Listen for recording status changes
-        hyperdeckService.on('transportInfo', async (info) => {
+  async startMonitoring() {
+    try {
+      if (!fs.existsSync(this.destinationPath)) {
+        await fs.ensureDir(this.destinationPath);
+      }
+  
+      console.log('Starting monitoring with destination:', this.destinationPath);
+      this.isMonitoring = true;
+  
+      hyperdeckService.on('transportInfo', async (info) => {
+        try {
           if (info.status === 'record') {
             // Recording has started
-            console.log('Recording started on HyperDeck');
-            const filename = `recording_${Date.now()}.mp4`;
-            const streamKey = await rtspService.startStream(
-              this.hyperdeckIp,
-              info.slotId,
-              this.destinationPath,
-              filename
-            );
+            console.log('Recording started on HyperDeck, slot:', info.slot);
             
-            this.emit('recordingStarted', {
-              filename,
-              slot: info.slotId,
-              streamKey
-            });
+            // Get the recording name from HyperDeck
+            const currentClip = await hyperdeckService.getCurrentClip(info.slot);
+            console.log('Current clip info:', currentClip);
+            
+            // Start RTSP stream using the actual recording name
+            if (this.rtspEnabled) {
+              const streamKey = await rtspService.startStream(
+                this.hyperdeckIp,
+                info.slot,
+                this.destinationPath,
+                currentClip.name // Use the actual recording name
+              );
+              
+              console.log('Started RTSP stream:', streamKey);
+              
+              this.activeStreams.set(info.slot, {
+                streamKey,
+                filename: currentClip.name,
+                filePath: path.join(this.destinationPath, currentClip.name),
+                startTime: Date.now()
+              });
+  
+              this.emit('recordingStarted', {
+                filename: currentClip.name,
+                slot: info.slot,
+                filePath: path.join(this.destinationPath, currentClip.name)
+              });
+            }
           } else if (info.status === 'preview' || info.status === 'stopped') {
-            // Recording has stopped
-            console.log('Recording stopped on HyperDeck');
-            await rtspService.stopStream(this.hyperdeckIp, info.slotId);
-            this.emit('recordingStopped', {
-              slot: info.slotId
-            });
+            const streamInfo = this.activeStreams.get(info.slot);
+            if (streamInfo) {
+              console.log('Recording stopped, stopping RTSP stream');
+              
+              // Wait for file to be completely written
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              try {
+                // Stop RTSP stream
+                if (this.rtspEnabled) {
+                  await rtspService.stopStream(this.hyperdeckIp, info.slot);
+                }
+                
+                // Verify file exists
+                const filePath = path.join(this.destinationPath, streamInfo.filename);
+                if (await fs.pathExists(filePath)) {
+                  console.log('Recording file verified:', filePath);
+                  this.lastTransferredFile = {
+                    path: filePath,
+                    name: streamInfo.filename,
+                    slot: info.slot
+                  };
+                  
+                  this.emit('recordingStopped', {
+                    slot: info.slot,
+                    filePath: filePath,
+                    fileName: streamInfo.filename
+                  });
+                } else {
+                  throw new Error(`Recording file not found: ${filePath}`);
+                }
+              } catch (error) {
+                console.error('Error handling recording stop:', error);
+                this.emit('error', error);
+              } finally {
+                this.activeStreams.delete(info.slot);
+              }
+            }
           }
-        });
-
-        // Start transport info polling
-        for (const [drive, enabled] of Object.entries(this.drives)) {
-          if (enabled) {
-            const slot = drive === 'ssd1' ? 1 : 2;
-            await hyperdeckService.startTransportPolling(slot);
-          }
+        } catch (error) {
+          console.error('Error in transport info handler:', error);
+          this.emit('error', error);
         }
-      } catch (error) {
-        console.error('Error starting monitoring:', error);
-        throw error;
+      });
+  
+      // Start transport info polling
+      for (const [drive, enabled] of Object.entries(this.drives)) {
+        if (enabled) {
+          const slot = drive === 'ssd1' ? 1 : 2;
+          await hyperdeckService.startTransportPolling(slot);
+        }
       }
+  
+    } catch (error) {
+      console.error('Error starting monitoring:', error);
+      throw error;
     }
+  }
 
     async verifyRecording(filePath) {
       try {
