@@ -32,15 +32,7 @@ Download the appropriate version for your operating system:
 - Drag Hyperporter to your Applications folder
 - Right-click and select "Open" when launching for the first time
 
-### Windows
-- Download the `.exe` file
-- Run the executable to start the application
-- No installation required (portable)
 
-### Linux
-- Download the `.AppImage` file
-- Make it executable: `chmod +x Hyperporter.AppImage`
-- Double-click to run or launch from terminal
 
 ## Usage
 
@@ -62,38 +54,6 @@ Download the appropriate version for your operating system:
   - Windows 10 or later
   - Linux (modern distributions)
 
-## Development
-
-### Prerequisites
-- Node.js (v14 or later)
-- npm or yarn
-- Git
-
-### Setup
-```bash
-# Clone the repository
-git clone [repository-url]
-
-# Install dependencies
-npm install
-
-# Install client dependencies
-cd client && npm install
-
-# Start development server
-npm run electron-dev
-```
-
-### Building
-```bash
-# Build for all platforms
-npm run electron:build
-
-# Build for specific platform
-npm run electron:build:mac    # macOS
-npm run electron:build:win    # Windows
-npm run electron:build:linux  # Linux
-```
 
 ## Version History
 
