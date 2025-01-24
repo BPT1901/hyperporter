@@ -9,15 +9,23 @@
     "appId": "com.hyperporter.app",
     "productName": "Hyperporter",
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "assets/icon.icns"
     },
     "win": {
-      "target": ["portable", "zip"],
+      "target": [
+        "portable",
+        "zip"
+      ],
       "icon": "assets/icon.ico"
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "icon": "assets/icon.png"
     },
     "files": [
@@ -31,15 +39,17 @@
       "buildResources": "assets"
     },
     "extraResources": [
-    {
-      "from": "assets",
-      "to": ".",
-      "filter": ["icon.*"]
-    }
-  ],
+      {
+        "from": "assets",
+        "to": ".",
+        "filter": [
+          "icon.*"
+        ]
+      }
+    ],
     "extraMetadata": {
-    "main": "electron/main.js"
-  }
+      "main": "electron/main.js"
+    }
   },
   "scripts": {
     "start": "react-scripts start",
@@ -70,6 +80,7 @@
     "electron-builder": "^24.13.3",
     "electron-rebuild": "^3.2.9",
     "nodemon": "^3.0.3",
+    "prettier": "^3.4.2",
     "wait-on": "^7.0.1"
   }
 }
