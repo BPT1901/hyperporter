@@ -63,7 +63,7 @@
     "electron:build:mac": "npm run build && electron-builder --mac",
     "electron:build:win": "npm run build && electron-builder --win",
     "electron:build:linux": "npm run build && electron-builder --linux",
-	"format": "prettier -w ."
+    "format": "prettier -w ."
   },
   "dependencies": {
     "basic-ftp": "^5.0.5",

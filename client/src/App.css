@@ -1,17 +1,17 @@
 /* App.css */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
   --background-dark: #252222;
-  --text-primary: #D9D9D9;
-  --button-primary: #F6850D;
-  --button-hover: #9F5405;
-  --button-active: #F7A44B;
-  --border-error: #A90D0D;
-  --placeholder-color: #A90D0D;
-  --input-background: #7E7070;
-  --success-color: #2FAA35;
-  --error-color: #A90D0D;
+  --text-primary: #d9d9d9;
+  --button-primary: #f6850d;
+  --button-hover: #9f5405;
+  --button-active: #f7a44b;
+  --border-error: #a90d0d;
+  --placeholder-color: #a90d0d;
+  --input-background: #7e7070;
+  --success-color: #2faa35;
+  --error-color: #a90d0d;
 }
 
 * {
@@ -21,7 +21,7 @@
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   background-color: var(--background-dark);
   color: var(--text-primary);
 }
@@ -69,7 +69,7 @@ body {
   border-radius: 8px;
   padding: 1.5rem;
   height: 600px; /* Updated height */
-} 
+}
 
 .panel > h2:first-child {
   color: var(--text-primary);
@@ -106,7 +106,7 @@ body {
 }
 
 .input-group .input-field {
-  flex: none; 
+  flex: none;
   width: 426.05px;
   height: 43.5px;
 }
@@ -135,7 +135,7 @@ body {
 
 /* Buttons */
 .btn {
-  background-color: #F6850D;
+  background-color: #f6850d;
   color: white;
   border: none;
   border-radius: 8px;
@@ -146,15 +146,15 @@ body {
 }
 
 .btn:hover {
-  background-color: #9F5405;
+  background-color: #9f5405;
 }
 
 .btn:active {
-  background-color: #F7A44B;
-} 
+  background-color: #f7a44b;
+}
 
 .btn.monitoring {
-  background-color: #2FAA35;
+  background-color: #2faa35;
 }
 
 .btn.monitoring:hover {
@@ -258,11 +258,11 @@ body {
 }
 
 .text-success {
-  color: #2FAA35;
+  color: #2faa35;
 }
 
 .text-error {
-  color: #A90D0D;
+  color: #a90d0d;
 }
 
 .status-text {
@@ -286,4 +286,3 @@ body {
     transform: rotate(360deg);
   }
 }
-

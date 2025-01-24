@@ -1,10 +1,10 @@
 // server/routes/hyperdeck.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 // Remove hyperdeckClient import
 
 // Update route handlers to use WebSocket communication instead
-router.post('/connect', (req, res) => {
+router.post("/connect", (req, res) => {
   try {
     // Handle connection through WebSocket instead
     res.json({ success: true });
@@ -13,7 +13,7 @@ router.post('/connect', (req, res) => {
   }
 });
 
-router.post('/monitor', (req, res) => {
+router.post("/monitor", (req, res) => {
   try {
     // Handle monitoring through WebSocket instead
     res.json({ success: true });
