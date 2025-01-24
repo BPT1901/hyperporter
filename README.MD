@@ -19,8 +19,8 @@ NOTE, the live recording monitoring functionality is only supported on HyperDeck
 
 ## Screenshots
 
-![Main Interface](./HP1.png)
-![Main Interface](./HP2.png)
+![Main Interface](./images/HP1.png)
+![Main Interface](./images/HP2.png)
 
 ## Installation
 
