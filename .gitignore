@@ -1,5 +1,61 @@
-node_modules
-node_modules
-Myicon.iconset
-dist
+# Node dependencies
+node_modules/
+node_modules/*
+
+# Build artifacts
+dist/
+build/
+client/build/
+server/build/
+electron/dist/
+out/
+
+# OS-generated files
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.swn
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor and IDE-specific files
+.vscode/
+.idea/
+*.sublime-workspace
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Electron build artifacts
+electron-builder-cache/
+release/
+*.asar
+
+# MacOS iconset
+Myicon.iconset/
+
+# Package lock files (if using only npm)
+yarn.lock
+
+# NPM cache
+.npm/
+.npmrc
+
+# Prettier & ESLint cache
+.prettiercache
+.eslintcache
+
+# Optional: Ignore Git and SSH config (for security)
+.gitconfig
+.ssh/
