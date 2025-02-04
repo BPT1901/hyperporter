@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Clock, HardDrive, Save, Folder } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { Clock, HardDrive, Save, Folder } from 'lucide-react';
+import path from 'path-browserify'
 
 const FileList = ({ ws, isConnected }) => {
   console.log("FileList component rendering with:", { ws: !!ws, isConnected });
@@ -96,17 +97,23 @@ const FileList = ({ ws, isConnected }) => {
     };
   }, [ws, isConnected]);
 
-  const handleBrowse = async () => {
-    try {
-      const selectedPath = await window.electron.dialog.selectDirectory();
-      if (selectedPath) {
-        setDestinationPath(selectedPath);
-      }
-    } catch (error) {
-      console.error("Error selecting folder:", error);
-      setError("Error selecting folder");
+const handleBrowse = async () => {
+  try {
+    const selectedPath = await window.electron.dialog.selectDirectory();
+    if (selectedPath) {
+      setDestinationPath(path.normalize(selectedPath));
     }
+  }
+
+
+
+  catch {
+
   };
+}
+  
+  
+
 
   const handleFileNameChange = (e) => {
     let fileName = e.target.value;
