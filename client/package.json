@@ -2,7 +2,7 @@
   "name": "client",
   "version": "1.1.2",
   "private": true,
-  "homepage": "./",
+  "homepage": ".",
   "dependencies": {
     "cra-template": "1.2.0",
     "lucide-react": "^0.468.0",
