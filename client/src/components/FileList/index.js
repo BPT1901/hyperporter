@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Clock, HardDrive, Save, Folder } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Clock, HardDrive, Save, Folder } from "lucide-react";
 
 const FileList = ({ ws, isConnected }) => {
-  console.log('FileList component rendering with:', { ws: !!ws, isConnected });
+  console.log("FileList component rendering with:", { ws: !!ws, isConnected });
   const [files, setFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [destinationPath, setDestinationPath] = useState('');
-  const [newFileName, setNewFileName] = useState('');
+  const [destinationPath, setDestinationPath] = useState("");
+  const [newFileName, setNewFileName] = useState("");
   const [error, setError] = useState(null);
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferProgress, setTransferProgress] = useState(0);
@@ -14,131 +14,138 @@ const FileList = ({ ws, isConnected }) => {
 
   useEffect(() => {
     if (!ws || !isConnected) {
-      console.log('WebSocket not ready or not connected');
+      console.log("WebSocket not ready or not connected");
       return;
     }
 
     const handleMessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('FileList received message:', data);
-        console.log('FileList received raw message:', event.data);
-        console.log('FileList parsed message:', data);
+        console.log("FileList received message:", data);
+        console.log("FileList received raw message:", event.data);
+        console.log("FileList parsed message:", data);
 
         switch (data.type) {
-          case 'CLIP_LIST':
-            console.log('Received CLIP_LIST data:', data);
+          case "CLIP_LIST":
+            console.log("Received CLIP_LIST data:", data);
             if (Array.isArray(data.clips)) {
-              console.log('Setting files:', data.clips);
+              console.log("Setting files:", data.clips);
               setFiles(data.clips);
               setError(null);
               setIsLoadingFiles(false); // Clear loading state when files received
             } else {
-              console.error('Clips data is not an array:', data.clips);
+              console.error("Clips data is not an array:", data.clips);
               setIsLoadingFiles(false);
             }
             break;
-          case 'CONNECT_HYPERDECK_RESPONSE':
+          case "CONNECT_HYPERDECK_RESPONSE":
             if (data.success) {
               setIsLoadingFiles(true); // Set loading when connection successful
               requestFileList();
             }
             break;
-          case 'ERROR':
-            console.error('Received error:', data.message);
+          case "ERROR":
+            console.error("Received error:", data.message);
             setError(data.message);
             break;
-          case 'CONNECTED':
-            console.log('Connected to HyperDeck, requesting file list');
+          case "CONNECTED":
+            console.log("Connected to HyperDeck, requesting file list");
             requestFileList();
             break;
-            case 'TRANSFER_PROGRESS':
-              setTransferProgress(data.progress);
-              setIsTransferring(true);
-              break;
-            case 'RECORDING_SAVED':
-              setIsTransferring(false);
-              setTransferProgress(0);
-              setError(null);
-              break;
+          case "TRANSFER_PROGRESS":
+            setTransferProgress(data.progress);
+            setIsTransferring(true);
+            break;
+          case "RECORDING_SAVED":
+            setIsTransferring(false);
+            setTransferProgress(0);
+            setError(null);
+            break;
           default:
-            console.log('Unhandled message type:', data.type);
+            console.log("Unhandled message type:", data.type);
         }
       } catch (error) {
-        console.error('Error processing message:', error);
-        setError('Error processing server message');
+        console.error("Error processing message:", error);
+        setError("Error processing server message");
         setIsLoadingFiles(false);
       }
     };
 
     const requestFileList = () => {
       try {
-        console.log('Attempting to send GET_FILE_LIST request');
+        console.log("Attempting to send GET_FILE_LIST request");
         setIsLoadingFiles(true); // Set loading when requesting files
-        ws.send(JSON.stringify({ type: 'GET_FILE_LIST' }));
-        console.log('GET_FILE_LIST request sent successfully');
+        ws.send(JSON.stringify({ type: "GET_FILE_LIST" }));
+        console.log("GET_FILE_LIST request sent successfully");
       } catch (error) {
-        console.error('Error sending GET_FILE_LIST request:', error);
-        setError('Failed to request file list');
+        console.error("Error sending GET_FILE_LIST request:", error);
+        setError("Failed to request file list");
         setIsLoadingFiles(false);
       }
     };
 
-    console.log('Setting up WebSocket message listener');
-    ws.addEventListener('message', handleMessage);
-    
-    console.log('Requesting initial file list');
+    console.log("Setting up WebSocket message listener");
+    ws.addEventListener("message", handleMessage);
+
+    console.log("Requesting initial file list");
     requestFileList();
 
     return () => {
-      console.log('Cleaning up WebSocket listener');
-      ws.removeEventListener('message', handleMessage);
+      console.log("Cleaning up WebSocket listener");
+      ws.removeEventListener("message", handleMessage);
     };
-}, [ws, isConnected]);
+  }, [ws, isConnected]);
 
-const handleBrowse = async () => {
-  try {
-    const selectedPath = await window.electron.dialog.selectDirectory();
-    if (selectedPath) {
-      setDestinationPath(selectedPath);
+  const handleBrowse = async () => {
+    try {
+      const selectedPath = await window.electron.dialog.selectDirectory();
+      if (selectedPath) {
+        setDestinationPath(selectedPath);
+      }
+    } catch (error) {
+      console.error("Error selecting folder:", error);
+      setError("Error selecting folder");
     }
-  } catch (error) {
-    console.error('Error selecting folder:', error);
-    setError('Error selecting folder');
-  }
-};
+  };
 
   const handleFileNameChange = (e) => {
     let fileName = e.target.value;
-    fileName = fileName.replace(/\.mp4$/, '');
+    fileName = fileName.replace(/\.mp4$/, "");
     setNewFileName(fileName);
   };
 
   const handleSave = () => {
     if (!destinationPath || !newFileName || !selectedFile) {
-      setError('Please select a file and enter a file name');
+      setError("Please select a file and enter a file name");
       return;
     }
-    
-    const fullFileName = newFileName.endsWith('.mp4') ? newFileName : `${newFileName}.mp4`;
-    
-    ws.send(JSON.stringify({
-      type: 'SAVE_RECORDING',
-      file: selectedFile,
-      destinationPath,
-      newFileName: fullFileName
-    }));
-    setNewFileName('');
+
+    const fullFileName = newFileName.endsWith(".mp4")
+      ? newFileName
+      : `${newFileName}.mp4`;
+
+    ws.send(
+      JSON.stringify({
+        type: "SAVE_RECORDING",
+        file: selectedFile,
+        destinationPath,
+        newFileName: fullFileName,
+      }),
+    );
+    setNewFileName("");
   };
 
-  console.log('Current files state:', files); // Debug log
+  console.log("Current files state:", files); // Debug log
 
   return (
     <>
       <h2 className="text-xl font-semibold mb-4 pb-2 border-b-2 border-[#A90D0D]">
         Available Recordings
       </h2>
-      <div className="recordings-list" style={{ width: '493.03px', height: '300px', overflowY: 'auto' }}>
+      <div
+        className="recordings-list"
+        style={{ width: "493.03px", height: "300px", overflowY: "auto" }}
+      >
         {error ? (
           <p className="text-red-500">{error}</p>
         ) : isLoadingFiles ? (
@@ -167,7 +174,7 @@ const handleBrowse = async () => {
                       </div>
                       <div className="flex items-center">
                         <Clock size={16} className="mr-1" />
-                        <span>{file.duration || 'Unknown'}</span>
+                        <span>{file.duration || "Unknown"}</span>
                       </div>
                     </div>
                   </div>
@@ -187,10 +194,7 @@ const handleBrowse = async () => {
             readOnly
             placeholder="Select destination folder"
           />
-          <button
-            className="btn"
-            onClick={handleBrowse}
-          >
+          <button className="btn" onClick={handleBrowse}>
             <Folder size={18} />
           </button>
         </div>
@@ -200,23 +204,41 @@ const handleBrowse = async () => {
           <input
             type="text"
             className="input-field"
-            style={{ width: '426.05px', height: '43.5px' }}
+            style={{ width: "426.05px", height: "43.5px" }}
             value={newFileName}
             onChange={handleFileNameChange}
             placeholder="Enter new file name"
           />
-          <div className="flex items-center space-x-2"> {/* Only changed this container */}
+          <div className="flex items-center space-x-2">
+            {" "}
+            {/* Only changed this container */}
             <button
               className="btn"
               onClick={handleSave}
-              disabled={!destinationPath || !newFileName || !selectedFile || isTransferring}
+              disabled={
+                !destinationPath ||
+                !newFileName ||
+                !selectedFile ||
+                isTransferring
+              }
             >
               <span className="flex items-center justify-center">
                 {isTransferring ? (
                   <div className="animate-spin">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
                     </svg>
                   </div>
                 ) : (

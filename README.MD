@@ -19,20 +19,19 @@ NOTE, the live recording monitoring functionality is only supported on HyperDeck
 
 ## Screenshots
 
-![Main Interface](./HP1.png)
-![Main Interface](./HP2.png)
+![Main Interface](./images/HP1.png)
+![Main Interface](./images/HP2.png)
 
 ## Installation
 
 Download the appropriate version for your operating system:
 
 ### macOS
+
 - Download the `.dmg` file
 - Open the `.dmg` file
 - Drag Hyperporter to your Applications folder
 - Right-click and select "Open" when launching for the first time
-
-
 
 ## Usage
 
@@ -54,7 +53,6 @@ Download the appropriate version for your operating system:
   - Windows 10 or later
   - Linux (modern distributions)
 
-
 ## Version History
 
 - 1.1.0
@@ -63,13 +61,13 @@ Download the appropriate version for your operating system:
   - Cross-platform support
 
 ## Future planned release updates
+
 - Intergration with Companion software
 - Expanding to include AJA range of pro recorders
 
 ## License
 
 ISC License
-
 
 ## Support
 

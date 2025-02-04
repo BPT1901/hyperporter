@@ -9,20 +9,27 @@
     "appId": "com.hyperporter.app",
     "productName": "Hyperporter",
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "assets/icon.icns"
     },
     "win": {
-      "target": ["portable", "zip"],
+      "target": [
+        "portable",
+        "zip"
+      ],
       "icon": "assets/icon.ico"
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "icon": "assets/icon.png"
     },
     "files": [
       "client/build/**/*",
-      "node_modules/**/*",
       "electron/**/*",
       "server/**/*",
       "package.json"
@@ -31,28 +38,30 @@
       "buildResources": "assets"
     },
     "extraResources": [
-    {
-      "from": "assets",
-      "to": ".",
-      "filter": ["icon.*"]
-    }
-  ],
+      {
+        "from": "assets",
+        "to": "."
+      }
+    ],
     "extraMetadata": {
-    "main": "electron/main.js"
-  }
+      "main": "electron/main.js"
+    }
   },
+  "preinstall": "if [ ! -d 'node_modules' ]; then npm install; fi",
   "scripts": {
-    "start": "react-scripts start",
-    "build": "cd client && npm run build && cd ..",
+    "start": "concurrently \"cd client && react-scripts start\" \"cd server && node index.js\"",
+    "build": "cd client && npm run build && cd .. && npm prune --production",
+	"install-deps": "concurrently \"cd client && npm install\" \"cd server && npm install\"",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev": "nodemon server/index.js",
-    "electron-dev": "cross-env NODE_ENV=development concurrently \"yarn --cwd client start\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron-dev": "cross-env NODE_ENV=development concurrently \"yarn --cwd client start\" \"wait-on http://localhost:3000 --timeout 60000 && electron .\"",
     "electron": "electron .",
     "electron:build": "npm run build && electron-builder -mwl",
     "electron:build:mac": "npm run build && electron-builder --mac",
     "electron:build:win": "npm run build && electron-builder --win",
-    "electron:build:linux": "npm run build && electron-builder --linux"
+    "electron:build:linux": "npm run build && electron-builder --linux",
+    "format": "prettier -w ."
   },
   "dependencies": {
     "basic-ftp": "^5.0.5",
@@ -70,6 +79,8 @@
     "electron-builder": "^24.13.3",
     "electron-rebuild": "^3.2.9",
     "nodemon": "^3.0.3",
+    "prettier": "^3.4.2",
+	"react-scripts": "^5.0.1",
     "wait-on": "^7.0.1"
   }
 }

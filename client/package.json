@@ -1,12 +1,8 @@
 {
   "name": "client",
-<<<<<<< HEAD
   "version": "1.1.2",
-=======
-  "version": "1.1.0",
->>>>>>> b26d8241a5c9acbe987e034cb3fd375f93ebcad3
   "private": true,
-  "homepage": "./",
+  "homepage": ".",
   "dependencies": {
     "cra-template": "1.2.0",
     "lucide-react": "^0.468.0",
