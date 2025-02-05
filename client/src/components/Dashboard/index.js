@@ -50,10 +50,8 @@ const Dashboard = ({ onConnect }) => {
         return;
       }
 
-      const wsUrl =
-        process.env.NODE_ENV === "development"
-          ? "ws://localhost:3001/ws"
-          : "ws://127.0.0.1:3001/ws";
+      const wsUrl = "ws://localhost:3001/ws";
+
 
       socket = new WebSocket(wsUrl);
 

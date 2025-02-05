@@ -13,9 +13,18 @@ const isDev = process.env.NODE_ENV === "development";
 const serverPath = path.join(__dirname, "..", "server", "index.js");
 let serverProcess = null;
 
+const { exec } = require("child_process");
+
 if (!isDev) {
-  // Start the server in production
-  serverProcess = require("child_process").fork(serverPath);
+  console.log("Starting WebSocket server...");
+  exec(`node ${serverPath}`, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error starting WebSocket server: ${error}`);
+      return;
+    }
+    console.log(`WebSocket Server Output: ${stdout}`);
+    if (stderr) console.error(`WebSocket Server Error: ${stderr}`);
+  });
 }
 
 function testHyperdeckConnection(ip) {

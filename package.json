@@ -6,6 +6,7 @@
   "author": "Ben Turner",
   "license": "ISC",
   "build": {
+    "asar": false,
     "appId": "com.hyperporter.app",
     "productName": "Hyperporter",
     "mac": {
@@ -51,7 +52,7 @@
   "scripts": {
     "start": "concurrently \"cd client && react-scripts start\" \"cd server && node index.js\"",
     "build": "cd client && npm run build && cd .. && npm prune --production",
-	"install-deps": "concurrently \"cd client && npm install\" \"cd server && npm install\"",
+    "install-deps": "concurrently \"cd client && npm install\" \"cd server && npm install\"",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev": "nodemon server/index.js",
@@ -65,6 +66,7 @@
   },
   "dependencies": {
     "basic-ftp": "^5.0.5",
+    "chokidar": "^4.0.3",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "fluent-ffmpeg": "^2.1.2",
@@ -75,12 +77,11 @@
   "devDependencies": {
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
-    "electron": "^25.3.1",
-    "electron-builder": "^24.13.3",
-    "electron-rebuild": "^3.2.9",
+    "electron": "25.9.8",
+    "electron-builder": "^25.1.8",
     "nodemon": "^3.0.3",
     "prettier": "^3.4.2",
-	"react-scripts": "^5.0.1",
+    "react-scripts": "^5.0.1",
     "wait-on": "^7.0.1"
   }
 }
