@@ -77,9 +77,10 @@ Windows and Linux versions to follow
 
 ## Version History
 
-- 1.1.0
+- 1.1.2
   - Initial release
   - Basic monitoring and transfer functionality
+  - Ability to monitor multiple HyperDeck recorders
   - Cross-platform support
 
 ## Future planned release updates
