@@ -33,28 +33,6 @@ Download the appropriate version for your operating system:
 - Drag Hyperporter to your Applications folder
 - Right-click and select "Open" when launching for the first time
 
-## Install from source
-
-Prerequisites:
-- Node.js 18+ (Install from nodejs.org)
-- Git
-- Yarn (recommended, or use npm)
-
-1. Clone repository:
-`git clone https://github.com/yourusername/hyperporter.git
-cd hyperporter`
-
-2. Install dependencies
-`npm install`
-
-3. Run in Development Mode
-`npm run electron-dev`
-
-4. Build and package the app
-`npm run build`
-`electron-builder build --mac`
-Windows and Linux versions to follow 
-
 ## Usage
 
 1. Launch Hyperporter
@@ -77,10 +55,9 @@ Windows and Linux versions to follow
 
 ## Version History
 
-- 1.1.2
+- 1.1.0
   - Initial release
   - Basic monitoring and transfer functionality
-  - Ability to monitor multiple HyperDeck recorders
   - Cross-platform support
 
 ## Future planned release updates
