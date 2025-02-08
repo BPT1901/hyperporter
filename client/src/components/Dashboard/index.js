@@ -52,7 +52,6 @@ const Dashboard = ({ onConnect }) => {
 
       const wsUrl = "ws://localhost:3001/ws";
 
-
       socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
