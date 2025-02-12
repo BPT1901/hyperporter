@@ -97,24 +97,21 @@ const FileList = ({ ws, isConnected }) => {
     };
   }, [ws, isConnected]);
 
-const handleBrowse = async () => {
-  try {
-    const selectedPath = await window.electron.dialog.selectDirectory();
-    if (selectedPath) {
-      setDestinationPath(path.normalize(selectedPath));
+  const handleBrowse = async () => {
+    try {
+      const selectedPath = await window.electron.dialog.selectDirectory();
+      if (selectedPath) {
+        const normalizedPath = path.normalize(selectedPath);
+        console.log("Selected and normalized destination path:", normalizedPath);
+        setDestinationPath(normalizedPath);
+      }
+    } catch (error) {
+      console.error("Error selecting directory:", error);
+      setError("Failed to select directory");
     }
-  }
-
-
-
-  catch {
-
   };
-}
   
   
-
-
   const handleFileNameChange = (e) => {
     let fileName = e.target.value;
     fileName = fileName.replace(/\.mp4$/, "");
@@ -126,22 +123,38 @@ const handleBrowse = async () => {
       setError("Please select a file and enter a file name");
       return;
     }
-
-    const fullFileName = newFileName.endsWith(".mp4")
-      ? newFileName
-      : `${newFileName}.mp4`;
-
+  
+    const normalizedPath = path.normalize(destinationPath);
+    if (!normalizedPath || normalizedPath.trim() === "") {
+      setError("Invalid destination path");
+      return;
+    }
+  
+    // ✅ Ensure the new file name has ".mp4" extension
+    const fullFileName = newFileName.endsWith(".mp4") ? newFileName : `${newFileName}.mp4`;
+  
+    console.log("Sending SAVE_RECORDING:", {
+      file: selectedFile,
+      destinationPath: normalizedPath,
+      newFileName: fullFileName,
+    });
+  
     ws.send(
       JSON.stringify({
         type: "SAVE_RECORDING",
-        file: selectedFile,
-        destinationPath,
+        file: { ...selectedFile, name: selectedFile.name }, // ✅ Ensure correct file object
+        destinationPath: normalizedPath,
         newFileName: fullFileName,
       }),
     );
+  
     setNewFileName("");
   };
-
+  
+  
+  console.log("Selected File:", selectedFile);
+  console.log("Destination Path:", destinationPath);
+  console.log("New File Name:", newFileName);
   console.log("Current files state:", files); // Debug log
 
   return (

@@ -323,73 +323,58 @@ wss.on("connection", (ws, req) => {
         // break;
 
         case "SAVE_RECORDING":
-          try {
-            const fileWatcher = new FileWatcher({
-              drives: { [data.file.slot === 1 ? "ssd1" : "ssd2"]: true },
-              destinationPath: data.destinationPath,
-              hyperdeckIp: connectedDevices.get(ws),
-            });
+        try {
+          console.log("🔹 SAVE_RECORDING event received:", data);
 
-            // Initial progress notification
-            ws.send(
-              JSON.stringify({
-                type: "TRANSFER_PROGRESS",
-                progress: 0,
-              }),
-            );
-
-            // Set up event listeners for progress
-            fileWatcher.on("transferProgress", (progressData) => {
-              if (progressData.type === "TRANSFER_PROGRESS") {
-                ws.send(
-                  JSON.stringify({
-                    type: "TRANSFER_PROGRESS",
-                    progress: progressData.progress,
-                  }),
-                );
-              } else if (progressData.type === "TRANSFER_COMPLETE") {
-                ws.send(
-                  JSON.stringify({
-                    type: "TRANSFER_PROGRESS",
-                    progress: 100,
-                  }),
-                );
-              }
-            });
-
-            // Ensure directory exists
-            await fs.ensureDir(data.destinationPath);
-
-            // Copy the file
-            await fileWatcher.transferViaFTP({
-              name: data.file.name,
-              path: `ssd${data.file.slot}/${data.file.name}`,
-              drive: `ssd${data.file.slot}`,
-            });
-
-            // If a new filename was provided, rename the file
-            if (data.newFileName && data.newFileName !== data.file.name) {
-              const oldPath = path.join(data.destinationPath, data.file.name);
-              const newPath = path.join(data.destinationPath, data.newFileName);
-              await fs.rename(oldPath, newPath);
-            }
-
-            ws.send(
-              JSON.stringify({
-                type: "RECORDING_SAVED",
-                message: "Recording saved successfully",
-              }),
-            );
-          } catch (error) {
-            console.error("Error saving recording:", error);
-            ws.send(
-              JSON.stringify({
-                type: "ERROR",
-                message: `Failed to save recording: ${error.message}`,
-              }),
-            );
+          // Ensure destination path exists
+          if (!fs.existsSync(data.destinationPath)) {
+            console.error("❌ Destination folder does not exist:", data.destinationPath);
+            throw new Error("Destination folder does not exist");
           }
-          break;
+
+          const normalizedDestinationPath = path.resolve(data.destinationPath);
+          const sourceFileName = path.basename(data.file.name);
+          const sourceFilePath = path.join(normalizedDestinationPath, sourceFileName);
+          const destinationFilePath = path.join(normalizedDestinationPath, data.newFileName || sourceFileName);
+
+          // Log all relevant paths
+          console.log("🔹 Paths:");
+          console.log(`  - Destination Path: ${normalizedDestinationPath}`);
+          console.log(`  - Source File Name: ${sourceFileName}`);
+          console.log(`  - Source File Path (Before Move): ${sourceFilePath}`);
+          console.log(`  - Destination File Path (After Move): ${destinationFilePath}`);
+
+          // Check if Source File Exists
+          if (!fs.existsSync(sourceFilePath)) {
+            console.error("❌ Source file does not exist:", sourceFilePath);
+            throw new Error(`Source file does not exist: ${sourceFilePath}`);
+          }
+
+          // Attempt to Move File
+          console.log("✅ Attempting to move file...");
+          await fs.rename(sourceFilePath, destinationFilePath);
+          console.log("✅ File moved successfully:", destinationFilePath);
+
+          ws.send(
+            JSON.stringify({
+              type: "RECORDING_SAVED",
+              message: "Recording saved successfully",
+            })
+          );
+        } catch (error) {
+          console.error("❌ Error saving recording:", error);
+          ws.send(
+            JSON.stringify({
+              type: "ERROR",
+              message: `Failed to save recording: ${error.message}`,
+            })
+          );
+        }
+        break;
+
+
+
+
 
         case "RENAME_FILE":
           try {
@@ -425,36 +410,41 @@ wss.on("connection", (ws, req) => {
           }
           break;
 
-        case "RENAME_MONITORED_FILE":
-          try {
-            console.log("Renaming monitored file:", {
-              oldPath: data.oldPath,
-              newName: data.newName,
-            });
-
-            const dirPath = path.dirname(data.oldPath);
-            const newPath = path.join(dirPath, data.newName);
-
-            await fs.rename(data.oldPath, newPath);
-
-            ws.send(
-              JSON.stringify({
-                type: "FILE_RENAMED",
-                message: "File renamed successfully",
-                oldName: path.basename(data.oldPath),
+          case "RENAME_MONITORED_FILE":
+            try {
+              console.log("Renaming monitored file:", {
+                oldPath: data.oldPath,
                 newName: data.newName,
-              }),
-            );
-          } catch (error) {
-            console.error("Error renaming monitored file:", error);
-            ws.send(
-              JSON.stringify({
-                type: "ERROR",
-                message: `Failed to rename file: ${error.message}`,
-              }),
-            );
-          }
+              });
+          
+              const dirPath = path.dirname(data.oldPath);
+              const newPath = path.join(dirPath, data.newName);
+          
+              if (!fs.existsSync(data.oldPath)) {
+                throw new Error("File does not exist for renaming");
+              }
+          
+              await fs.rename(data.oldPath, newPath);
+          
+              ws.send(
+                JSON.stringify({
+                  type: "FILE_RENAMED",
+                  message: "File renamed successfully",
+                  oldName: path.basename(data.oldPath),
+                  newName: data.newName,
+                }),
+              );
+            } catch (error) {
+              console.error("Error renaming monitored file:", error);
+              ws.send(
+                JSON.stringify({
+                  type: "ERROR",
+                  message: `Failed to rename file: ${error.message}`,
+                }),
+              );
+            }
           break;
+          
 
         default:
           ws.send(

@@ -96,31 +96,37 @@ class RtspService {
     const stream = this.activeStreams.get(streamKey);
 
     if (stream) {
-      try {
-        // Give ffmpeg a chance to finish writing
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        try {
+            // Give ffmpeg a chance to finish writing
+            await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        stream.command.kill("SIGTERM");
-        this.activeStreams.delete(streamKey);
-        this.streamRetryAttempts.delete(streamKey);
+            stream.command.kill("SIGTERM");
+            this.activeStreams.delete(streamKey);
+            this.streamRetryAttempts.delete(streamKey);
 
-        console.log(`Stopped stream: ${streamKey}`);
+            console.log(`Stopped stream: ${streamKey}`);
 
-        // Verify the final file
-        const finalSize = fs.statSync(stream.outputPath).size;
-        console.log(`Final recording size: ${finalSize} bytes`);
+            // Validate final file existence
+            if (!fs.existsSync(stream.outputPath)) {
+                console.error("Error: Recording file does not exist:", stream.outputPath);
+                throw new Error("Recording file does not exist");
+            }
 
-        return {
-          outputPath: stream.outputPath,
-          duration: (Date.now() - stream.startTime) / 1000,
-          fileSize: finalSize,
-        };
-      } catch (error) {
-        console.error("Error stopping stream:", error);
-        throw error;
-      }
+            const finalSize = fs.statSync(stream.outputPath).size;
+            console.log(`Final recording size: ${finalSize} bytes`);
+
+            return {
+                outputPath: stream.outputPath,
+                duration: (Date.now() - stream.startTime) / 1000,
+                fileSize: finalSize,
+            };
+        } catch (error) {
+            console.error("Error stopping stream:", error);
+            throw error;
+        }
     }
   }
+
 
   getStreamStatus(hyperdeckIp, slot) {
     const streamKey = `${hyperdeckIp}_${slot}`;

@@ -1,31 +1,62 @@
 //electron/main.js
-
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { execFile, fork } = require("child_process");
 const path = require("path");
-const hyperdeckService = require("../server/services/hyperdeckService");
-const net = require("net");
-const createMenu = require("./menu");
+const os = require("os");
 
-app.name = "Hyperporter";
-
+let serverProcess = null;
+const isWindows = os.platform() === "win32";
 const isDev = process.env.NODE_ENV === "development";
 
-const serverPath = path.join(__dirname, "..", "server", "index.js");
-let serverProcess = null;
+// Determine WebSocket server path based on platform
+const serverPath = isWindows
+  ? path.join(process.resourcesPath, "websocket-server.exe")
+  : path.join(__dirname, "..", "server", "index.js");
 
-const { exec } = require("child_process");
-
-if (!isDev) {
-  console.log("Starting WebSocket server...");
-  exec(`node ${serverPath}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Error starting WebSocket server: ${error}`);
-      return;
-    }
-    console.log(`WebSocket Server Output: ${stdout}`);
-    if (stderr) console.error(`WebSocket Server Error: ${stderr}`);
-  });
+function startWebSocketServer() {
+  if (isWindows) {
+    console.log("Starting WebSocket server on Windows...");
+    serverProcess = execFile(serverPath, (error, stdout, stderr) => {
+      if (error) {
+        console.error("Error starting WebSocket server:", error);
+        return;
+      }
+      console.log(`WebSocket Server Output: ${stdout}`);
+      if (stderr) console.error(`WebSocket Server Error: ${stderr}`);
+    });
+  } else {
+    console.log("Starting WebSocket server on macOS...");
+    serverProcess = fork(serverPath);
+    serverProcess.on("error", (error) => {
+      console.error("Error starting WebSocket server:", error);
+    });
+    serverProcess.on("exit", (code) => {
+      console.log(`WebSocket server exited with code: ${code}`);
+    });
+  }
 }
+
+// Start the WebSocket server if not in development mode
+if (!isDev) {
+  startWebSocketServer();
+}
+
+// Handle app closing to ensure the server process is killed
+app.on("window-all-closed", () => {
+  if (serverProcess) {
+    serverProcess.kill();
+  }
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("quit", () => {
+  if (serverProcess) {
+    serverProcess.kill();
+  }
+});
+
 
 function testHyperdeckConnection(ip) {
   return new Promise((resolve, reject) => {

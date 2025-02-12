@@ -204,43 +204,49 @@ class FileWatcher extends EventEmitter {
     const client = new ftp.Client();
     client.ftp.verbose = true;
     try {
-      await client.access({
-        host: this.hyperdeckIp,
-        user: "anonymous",
-        password: "anonymous",
-        secure: false,
-      });
+        await client.access({
+            host: this.hyperdeckIp,
+            user: "anonymous",
+            password: "anonymous",
+            secure: false,
+        });
 
-      const destinationPath = path.join(this.destinationPath, fileInfo.name);
-      console.log(
-        `Attempting to download ${fileInfo.path} to ${destinationPath}`,
-      );
+        // Define correct paths
+        const sourcePath = path.join(fileInfo.drive, fileInfo.name);
+        const destinationPath = path.join(this.destinationPath, fileInfo.name);
 
-      await client.cd(fileInfo.drive);
+        console.log(`Attempting to download ${sourcePath} to ${destinationPath}`);
 
-      // Download the file
-      await client.downloadTo(destinationPath, fileInfo.name);
-      console.log(`Successfully downloaded ${fileInfo.name}`);
+        await client.cd(fileInfo.drive);
 
-      this.emit("transferProgress", {
-        type: "TRANSFER_COMPLETE",
-        filename: fileInfo.name,
-        destinationPath,
-      });
+        // Ensure the destination directory exists
+        await fs.ensureDir(this.destinationPath);
 
-      return destinationPath;
+        // Download the file to the correct location
+        await client.downloadTo(destinationPath, fileInfo.name);
+        console.log(`Successfully downloaded ${fileInfo.name}`);
+
+        // Emit event after successful transfer
+        this.emit("transferProgress", {
+            type: "TRANSFER_COMPLETE",
+            filename: fileInfo.name,
+            destinationPath,
+        });
+
+        return destinationPath;
     } catch (error) {
-      console.error(`Error in transferViaFTP for ${fileInfo.name}:`, error);
-      this.emit("error", {
-        type: "TRANSFER_ERROR",
-        message: error.message,
-        filename: fileInfo.name,
-      });
-      throw error;
+        console.error(`Error in transferViaFTP for ${fileInfo.name}:`, error);
+        this.emit("error", {
+            type: "TRANSFER_ERROR",
+            message: error.message,
+            filename: fileInfo.name,
+        });
+        throw error;
     } finally {
-      client.close();
+        client.close();
     }
   }
+
 
   async getFTPFileList() {
     const client = new ftp.Client();

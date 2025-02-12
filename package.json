@@ -10,29 +10,30 @@
     "appId": "com.hyperporter.app",
     "productName": "Hyperporter",
     "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
+      "target": ["dmg", "zip"],
       "icon": "assets/icon.icns"
     },
     "win": {
       "target": [
-        "portable",
-        "zip"
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
       ],
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "publish": null,
       "icon": "assets/icon.ico"
     },
     "linux": {
-      "target": [
-        "AppImage"
-      ],
+      "target": ["AppImage"],
       "icon": "assets/icon.png"
     },
     "files": [
-      "client/build/**/*",
-      "electron/**/*",
-      "server/**/*",
+      "dist/",
+      "server/",
+      "client/",
+      "electron/",
+      "main.js",
       "package.json"
     ],
     "directories": {
@@ -44,6 +45,20 @@
         "to": "."
       }
     ],
+    "extraFiles": [
+      {
+        "from": "server/websocket-server.exe",
+        "to": "resources/websocket-server.exe"
+      }
+    ],
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Hyperporter",
+      "perMachine": true
+    },
     "extraMetadata": {
       "main": "electron/main.js"
     }
