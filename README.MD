@@ -36,7 +36,7 @@ Download the appropriate version for your operating system:
 ## Install from source
 
 Prerequisites:
-- Node.js 18+ (Install from nodejs.org)
+- Node.js 16+ (Install from nodejs.org)
 - Git
 - Yarn (recommended, or use npm)
 
@@ -72,8 +72,7 @@ Windows and Linux versions to follow
 - Network connection to HyperDeck
 - Operating System:
   - macOS 10.15 or later
-  - Windows 10 or later
-  - Linux (modern distributions)
+
 
 ## Version History
 
@@ -81,7 +80,6 @@ Windows and Linux versions to follow
   - Initial release
   - Basic monitoring and transfer functionality
   - Ability to monitor multiple HyperDeck recorders
-  - Cross-platform support
 
 ## Future planned release updates
 
